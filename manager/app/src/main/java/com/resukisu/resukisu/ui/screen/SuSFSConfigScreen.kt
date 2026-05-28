@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -228,6 +229,7 @@ private fun SuSFeaturesTab(
     nestedScrollConnection: NestedScrollConnection,
 ) {
     val uiState = viewModel.uiState
+    val featureGroupTitle = stringResource(R.string.susfs_tab_enabled_features)
 
     Column(
         modifier = Modifier
@@ -249,12 +251,62 @@ private fun SuSFeaturesTab(
                             icon = Icons.Filled.Info,
                             title = null,
                             description = stringResource(R.string.susfs_enabled_features_description),
-                        ) {}
+                        )
                     }
                 }
             }
-            item {
-                FeatureGroup(features = uiState.featureStatus)
+
+            if (uiState.featureStatus.isEmpty()) {
+                item {
+                    SegmentedColumn(
+                        title = featureGroupTitle
+                    ) {
+                        item {
+                            SettingsBaseWidget(
+                                icon = Icons.Filled.Info,
+                                title = stringResource(R.string.susfs_no_features_found),
+                                description = null,
+                            )
+                        }
+                    }
+                }
+            } else {
+                lazySegmentedColumn(
+                    uiState.featureStatus,
+                    title = featureGroupTitle,
+                    key = { _, feature -> feature.key }) { _, feature ->
+                    if (feature.configurable) {
+                        SettingsSwitchWidget(
+                            icon = Icons.Filled.Settings,
+                            title = feature.title,
+                            description = if (feature.enabled) {
+                                stringResource(R.string.susfs_feature_enabled)
+                            } else {
+                                stringResource(R.string.susfs_feature_disabled)
+                            },
+                            checked = feature.enabled,
+                            descriptionColumnContent = {
+                                Text(
+                                    text = stringResource(R.string.susfs_feature_configurable),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        ) { checked ->
+                            (feature as ConfigurableSuSFSFeature).onCheckedChange(checked)
+                        }
+                    } else {
+                        SettingsBaseWidget(
+                            icon = Icons.Filled.Settings,
+                            title = feature.title,
+                            description = if (feature.enabled) {
+                                stringResource(R.string.susfs_feature_enabled)
+                            } else {
+                                stringResource(R.string.susfs_feature_disabled)
+                            },
+                        )
+                    }
+                }
             }
             item {
                 Spacer(modifier = Modifier.height(contentPadding.calculateBottomPadding()))
@@ -319,6 +371,12 @@ private fun SuSKstatTab(
             }
         )
     }
+    val kstatPathManagement = stringResource(R.string.kstat_path_management)
+    val addKstatPath = stringResource(R.string.add_kstat_path_title)
+    val noKstatConfigMessage = stringResource(R.string.no_kstat_config_message)
+    val update = stringResource(R.string.update)
+    val susfsUpdateFullClone = stringResource(R.string.susfs_update_full_clone)
+    val staticKstatConfig = stringResource(R.string.static_kstat_config)
 
     LazyColumn(
         modifier = Modifier
@@ -342,55 +400,52 @@ private fun SuSKstatTab(
                             stringResource(R.string.kstat_config_description_update),
                             stringResource(R.string.kstat_config_description_update_full_clone)
                         ).joinToString("\n"),
-                    ) {}
+                    )
                 }
             }
         }
-        item {
-            PathGroup(
-                title = stringResource(R.string.kstat_path_management),
-                addTitle = stringResource(R.string.add_kstat_path_title),
-                emptyText = stringResource(R.string.no_kstat_config_message),
-                paths = uiState.kstatPaths,
-                onAddClick = kstatPathEditDialog::show,
-                onDelete = viewModel::removeKstatPath,
-            )
-        }
-        item {
-            PathGroup(
-                title = stringResource(R.string.update),
-                addTitle = stringResource(R.string.update),
-                emptyText = stringResource(R.string.no_kstat_config_message),
-                paths = uiState.kstatUpdatedPaths,
-                onAddClick = kstatUpdatePathDialog::show,
-                onDelete = viewModel::removeKstatUpdatePath,
-            )
-        }
-        item {
-            PathGroup(
-                title = stringResource(R.string.susfs_update_full_clone),
-                addTitle = stringResource(R.string.susfs_update_full_clone),
-                emptyText = stringResource(R.string.no_kstat_config_message),
-                paths = uiState.kstatFullClonePaths,
-                onAddClick = kstatFullClonePathDialog::show,
-                onDelete = viewModel::removeKstatFullClonePath,
-            )
-        }
-        item {
-            StaticKstatGroup(
-                title = stringResource(R.string.static_kstat_config),
-                entries = uiState.staticKstatEntries,
-                onAddClick = {
-                    editingStaticKstatEntry = null
-                    staticKstatPathEditDialog.show()
-                },
-                onEdit = { entry ->
-                    editingStaticKstatEntry = entry
-                    staticKstatPathEditDialog.show()
-                },
-                onDelete = viewModel::removeStaticKstat,
-            )
-        }
+
+        pathGroup(
+            title = kstatPathManagement,
+            addTitle = addKstatPath,
+            emptyText = noKstatConfigMessage,
+            paths = uiState.kstatPaths,
+            onAddClick = kstatPathEditDialog::show,
+            onDelete = viewModel::removeKstatPath,
+        )
+
+        pathGroup(
+            title = update,
+            addTitle = update,
+            emptyText = noKstatConfigMessage,
+            paths = uiState.kstatUpdatedPaths,
+            onAddClick = kstatUpdatePathDialog::show,
+            onDelete = viewModel::removeKstatUpdatePath,
+        )
+
+        pathGroup(
+            title = susfsUpdateFullClone,
+            addTitle = susfsUpdateFullClone,
+            emptyText = noKstatConfigMessage,
+            paths = uiState.kstatFullClonePaths,
+            onAddClick = kstatFullClonePathDialog::show,
+            onDelete = viewModel::removeKstatFullClonePath,
+        )
+
+        staticKstatGroup(
+            title = staticKstatConfig,
+            entries = uiState.staticKstatEntries,
+            onAddClick = {
+                editingStaticKstatEntry = null
+                staticKstatPathEditDialog.show()
+            },
+            onEdit = { entry ->
+                editingStaticKstatEntry = entry
+                staticKstatPathEditDialog.show()
+            },
+            onDelete = viewModel::removeStaticKstat,
+        )
+
         item {
             Spacer(modifier = Modifier.height(contentPadding.calculateBottomPadding()))
         }
@@ -405,6 +460,9 @@ private fun SuSMapTab(
 ) {
     val uiState = viewModel.uiState
     val pathEditDialog = rememberPathEditDialog(AddPathTarget.SusMap, viewModel)
+    val susMap = stringResource(R.string.susfs_tab_sus_maps)
+    val addSuSMap = stringResource(R.string.susfs_add_sus_map)
+    val noSuSMapConfigured = stringResource(R.string.susfs_no_sus_maps_configured)
 
     LazyColumn(
         modifier = Modifier
@@ -423,20 +481,20 @@ private fun SuSMapTab(
                         icon = Icons.Filled.Security,
                         title = null,
                         description = stringResource(R.string.sus_maps_description_text),
-                    ) {}
+                    )
                 }
             }
         }
-        item {
-            PathGroup(
-                title = stringResource(R.string.susfs_tab_sus_maps),
-                addTitle = stringResource(R.string.susfs_add_sus_map),
-                emptyText = stringResource(R.string.susfs_no_sus_maps_configured),
-                paths = uiState.susMaps,
-                onAddClick = pathEditDialog::show,
-                onDelete = viewModel::removeSusMap,
-            )
-        }
+
+        pathGroup(
+            title = susMap,
+            addTitle = addSuSMap,
+            emptyText = noSuSMapConfigured,
+            paths = uiState.susMaps,
+            onAddClick = pathEditDialog::show,
+            onDelete = viewModel::removeSusMap,
+        )
+
         item {
             Spacer(modifier = Modifier.height(contentPadding.calculateBottomPadding()))
         }
@@ -451,6 +509,9 @@ private fun SuSLoopPathTab(
 ) {
     val uiState = viewModel.uiState
     val pathEditDialog = rememberPathEditDialog(AddPathTarget.SusLoopPath, viewModel)
+    val susLoopPath = stringResource(R.string.susfs_tab_sus_loop_paths)
+    val addSuSLoopPath = stringResource(R.string.susfs_add_sus_loop_path)
+    val noSuSPathConfigured = stringResource(R.string.susfs_no_loop_paths_configured)
 
     LazyColumn(
         modifier = Modifier
@@ -469,20 +530,18 @@ private fun SuSLoopPathTab(
                         icon = Icons.Filled.Info,
                         title = null,
                         description = stringResource(R.string.sus_loop_paths_description_text),
-                    ) {}
+                    )
                 }
             }
         }
-        item {
-            PathGroup(
-                title = stringResource(R.string.susfs_tab_sus_loop_paths),
-                addTitle = stringResource(R.string.susfs_add_sus_loop_path),
-                emptyText = stringResource(R.string.susfs_no_loop_paths_configured),
-                paths = uiState.susLoopPaths,
-                onAddClick = pathEditDialog::show,
-                onDelete = viewModel::removeSusLoopPath,
-            )
-        }
+        pathGroup(
+            title = susLoopPath,
+            addTitle = addSuSLoopPath,
+            emptyText = noSuSPathConfigured,
+            paths = uiState.susLoopPaths,
+            onAddClick = pathEditDialog::show,
+            onDelete = viewModel::removeSusLoopPath,
+        )
         item {
             Spacer(modifier = Modifier.height(contentPadding.calculateBottomPadding()))
         }
@@ -547,6 +606,10 @@ private fun SuSPathTab(
         appSection to others.sorted()
     }
 
+    val otherPath = stringResource(R.string.other_paths_section)
+    val addSuSPath = stringResource(R.string.susfs_add_sus_path)
+    val noSuSPathConfigured = stringResource(R.string.susfs_no_paths_configured)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -568,7 +631,7 @@ private fun SuSPathTab(
                             onClick = {
                                 addAppDialog?.show()
                             }
-                        ) {}
+                        )
                     }
                     item {
                         SettingsBaseWidget(
@@ -576,46 +639,38 @@ private fun SuSPathTab(
                             title = stringResource(R.string.susfs_add_sus_path),
                             description = null,
                             onClick = { pathEditDialog.show() }
-                        ) {}
+                        )
                     }
                 }
             }
             if (appGroups.isNotEmpty()) {
-                item {
-                    SegmentedColumn(
-                        title = stringResource(R.string.app_paths_section)
+                lazySegmentedColumn(
+                    appGroups,
+                    key = { _, (label, paths) -> "$label $paths" }) { _, (label, paths) ->
+                    SettingsBaseWidget(
+                        icon = Icons.Filled.Apps,
+                        title = label,
+                        description = paths.joinToString("\n"),
                     ) {
-                        appGroups.forEach { (label, paths) ->
-                            item(key = label) {
-                                SettingsBaseWidget(
-                                    icon = Icons.Filled.Apps,
-                                    title = label,
-                                    description = paths.joinToString("\n"),
-                                ) {
-                                    IconButton(onClick = { paths.forEach(viewModel::removeSusPath) }) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Delete,
-                                            contentDescription = stringResource(R.string.delete),
-                                            tint = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-                                }
-                            }
+                        IconButton(onClick = { paths.forEach(viewModel::removeSusPath) }) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.delete),
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
             }
-            item {
-                PathGroup(
-                    title = stringResource(R.string.other_paths_section),
-                    addTitle = stringResource(R.string.susfs_add_sus_path),
-                    emptyText = stringResource(R.string.susfs_no_paths_configured),
-                    paths = otherPaths,
-                    onAddClick = pathEditDialog::show,
-                    showAddEntry = false,
-                    onDelete = viewModel::removeSusPath,
-                )
-            }
+            pathGroup(
+                title = otherPath,
+                addTitle = addSuSPath,
+                emptyText = noSuSPathConfigured,
+                paths = otherPaths,
+                onAddClick = pathEditDialog::show,
+                showAddEntry = false,
+                onDelete = viewModel::removeSusPath,
+            )
 
             item {
                 Spacer(modifier = Modifier.height(contentPadding.calculateBottomPadding()))
@@ -690,7 +745,7 @@ private fun BasicTab(
                             icon = Icons.Filled.Info,
                             title = stringResource(R.string.susfs_config_description),
                             description = stringResource(R.string.susfs_config_description_text),
-                        ) {}
+                        )
                     }
                 }
             }
@@ -708,14 +763,14 @@ private fun BasicTab(
                             } else {
                                 stringResource(R.string.susfs_feature_disabled)
                             }
-                        ) {}
+                        )
                     }
                     item {
                         SettingsBaseWidget(
                             icon = Icons.Filled.Storage,
                             title = stringResource(R.string.home_susfs_version),
                             description = uiState.versionText.ifBlank { stringResource(R.string.unknown) }
-                        ) {}
+                        )
                     }
                     item {
                         SettingsSwitchWidget(
@@ -738,7 +793,7 @@ private fun BasicTab(
                                     stringResource(R.string.susfs_hide_mounts_setting_non_ksu)
                                 }
                             ),
-                        ) {}
+                        )
                     }
                 }
             }
@@ -805,7 +860,7 @@ private fun BasicTab(
                             title = stringResource(R.string.susfs_reset_to_default),
                             description = null,
                             onClick = { viewModel.setUnameAndBuildTime("", "") }
-                        ) {}
+                        )
                     }
                 }
             }
@@ -822,7 +877,7 @@ private fun BasicTab(
                             onClick = {
                                 slotDialog.show()
                             }
-                        ) {}
+                        )
                     }
                 }
             }
@@ -845,7 +900,7 @@ private fun BasicTab(
                             icon = Icons.Filled.Info,
                             title = null,
                             description = stringResource(R.string.avc_log_spoofing_warning),
-                        ) {}
+                        )
                     }
                 }
             }
@@ -1162,8 +1217,7 @@ fun SuSFSConfigScreen() {
     }
 }
 
-@Composable
-private fun PathGroup(
+private fun LazyListScope.pathGroup(
     title: String,
     addTitle: String,
     emptyText: String,
@@ -1172,36 +1226,50 @@ private fun PathGroup(
     showAddEntry: Boolean = true,
     onDelete: (String) -> Unit,
 ) {
-    SegmentedColumn(
-        title = title
-    ) {
-        item(visible = showAddEntry) {
-            SettingsBaseWidget(
-                icon = Icons.Filled.Add,
-                title = addTitle,
-                description = null,
-                onClick = { onAddClick() }
-            ) {}
+    // Yeah, that's ridiculous
+    // But I'm too lazy to change lazySegmentedColumn
+    // Let's leave it like this, just create two fake paths
+    // Anyway, I don't use this page myself(cross out).
+    val sealedPaths = buildList {
+        if (showAddEntry) {
+            add("Add entry card $title")
         }
-
-        item(visible = paths.isEmpty()) {
-            SettingsBaseWidget(
-                icon = Icons.Filled.Info,
-                title = emptyText,
-                description = null,
-            ) {}
+        if (paths.isEmpty()) {
+            add("Paths empty card $title")
         }
+        addAll(paths)
+    }
 
-        paths.forEach { path ->
-            item(key = path) {
+    lazySegmentedColumn(
+        items = sealedPaths,
+        title = title,
+        key = { _, path -> path }
+    ) { _, path ->
+        when (path) {
+            "Add entry card $title" -> {
+                SettingsBaseWidget(
+                    icon = Icons.Filled.Add,
+                    title = addTitle,
+                    description = null,
+                    onClick = { onAddClick() }
+                )
+            }
+
+            "Paths empty card $title" -> {
+                SettingsBaseWidget(
+                    icon = Icons.Filled.Info,
+                    title = emptyText,
+                    description = null,
+                )
+            }
+
+            else -> {
                 SettingsBaseWidget(
                     icon = Icons.Filled.Folder,
                     title = path,
                     description = null,
                 ) {
-                    IconButton(
-                        onClick = { onDelete(path) }
-                    ) {
+                    IconButton(onClick = { onDelete(path) }) {
                         Icon(
                             imageVector = Icons.Filled.Delete,
                             contentDescription = stringResource(R.string.delete),
@@ -1214,38 +1282,55 @@ private fun PathGroup(
     }
 }
 
-@Composable
-private fun StaticKstatGroup(
+private fun LazyListScope.staticKstatGroup(
     title: String,
     entries: List<SuSFSStaticKstatEntry>,
     onAddClick: () -> Unit,
     onEdit: (SuSFSStaticKstatEntry) -> Unit,
     onDelete: (SuSFSStaticKstatEntry) -> Unit,
 ) {
-    SegmentedColumn(
-        title = title
-    ) {
-        item {
-            SettingsBaseWidget(
-                icon = Icons.Filled.Add,
-                title = stringResource(R.string.add_kstat_statically_title),
-                description = null,
-                onClick = { onAddClick() }
-            ) {}
-        }
-
+    // Yeah, that's ridiculous x2
+    // But I'm too lazy to change lazySegmentedColumn
+    // Let's leave it like this, just create two fake entries
+    // Anyway, I don't use this page myself(cross out).
+    val sealedEntries = buildList {
+        add("Add entry card $title")
         if (entries.isEmpty()) {
-            item {
+            add("Entries empty card $title")
+        }
+        addAll(entries)
+    }
+
+    lazySegmentedColumn(
+        items = sealedEntries,
+        title = title,
+        key = { _, entry ->
+            if (entry is SuSFSStaticKstatEntry) {
+                "${entry.path}:${entry.ino}:${entry.dev}:${entry.size}"
+            } else entry
+        }
+    ) { _, entry ->
+        when (entry) {
+            "Add entry card $title" -> {
+                SettingsBaseWidget(
+                    icon = Icons.Filled.Add,
+                    title = stringResource(R.string.add_kstat_statically_title),
+                    description = null,
+                    onClick = { onAddClick() }
+                )
+            }
+
+            "Entries empty card $title" -> {
                 SettingsBaseWidget(
                     icon = Icons.Filled.Info,
                     title = stringResource(R.string.no_kstat_config_message),
                     description = null,
-                ) {}
+                )
             }
-        }
 
-        entries.forEach { entry ->
-            item(key = "${entry.path}:${entry.ino}:${entry.dev}:${entry.size}") {
+            else -> {
+                if (entry !is SuSFSStaticKstatEntry) throw IllegalArgumentException("Invalid entry: $entry")
+
                 SettingsBaseWidget(
                     icon = Icons.Filled.Folder,
                     title = entry.path,
@@ -1271,55 +1356,7 @@ private fun StaticKstatGroup(
 private fun FeatureGroup(
     features: List<SuSFSFeatureStatus>,
 ) {
-    SegmentedColumn(
-        title = stringResource(R.string.susfs_tab_enabled_features)
-    ) {
-        if (features.isEmpty()) {
-            item {
-                SettingsBaseWidget(
-                    icon = Icons.Filled.Info,
-                    title = stringResource(R.string.susfs_no_features_found),
-                    description = null,
-                ) {}
-            }
-        }
 
-        features.forEach { feature ->
-            item(key = feature.key) {
-                if (feature.configurable) {
-                    SettingsSwitchWidget(
-                        icon = Icons.Filled.Settings,
-                        title = feature.title,
-                        description = if (feature.enabled) {
-                            stringResource(R.string.susfs_feature_enabled)
-                        } else {
-                            stringResource(R.string.susfs_feature_disabled)
-                        },
-                        checked = feature.enabled,
-                        descriptionColumnContent = {
-                            Text(
-                                text = stringResource(R.string.susfs_feature_configurable),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    ) { checked ->
-                        (feature as ConfigurableSuSFSFeature).onCheckedChange(checked)
-                    }
-                } else {
-                    SettingsBaseWidget(
-                        icon = Icons.Filled.Settings,
-                        title = feature.title,
-                        description = if (feature.enabled) {
-                            stringResource(R.string.susfs_feature_enabled)
-                        } else {
-                            stringResource(R.string.susfs_feature_disabled)
-                        },
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -1574,7 +1611,7 @@ private fun AddAppPathDialog(
                                 iconPlaceholder = false,
                                 title = stringResource(R.string.no_apps_found),
                                 description = null,
-                            ) {}
+                            )
                         }
                     } else {
                         lazySegmentedColumn(
@@ -1717,7 +1754,7 @@ private fun SlotInfoDialog(
                                                 info.buildTime
                                             )
                                         }",
-                                    ) {}
+                                    )
                                 }
 
                                 Row(
