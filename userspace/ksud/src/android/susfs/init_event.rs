@@ -1,8 +1,11 @@
-use std::time::Duration;
+use std::{
+    path::Path,
+    process::Command,
+    thread,
+    time::{Duration, Instant},
+};
 
-use anyhow::{Context, Result};
 use log::{info, warn};
-use prop_rs_android::{resetprop::ResetProp, sys_prop};
 
 use crate::android::susfs::api;
 use crate::android::susfs::config;
@@ -10,6 +13,29 @@ use crate::android::susfs::config::data::Data;
 
 const USER_0_CE_AVAILABLE_PROP: &str = "sys.user.0.ce_available";
 const CE_AVAILABLE_WAIT_TIMEOUT_SECS: u64 = 10 * 60;
+const CE_AVAILABLE_POLL_INTERVAL_SECS: u64 = 1;
+const USER_0_CE_PATH_PREFIXES: &[&str] = &[
+    "/sdcard",
+    "/storage/emulated/0",
+    "/storage/self/primary",
+    "/mnt/user/0/primary",
+    "/mnt/runtime/default/emulated/0",
+    "/mnt/runtime/read/emulated/0",
+    "/mnt/runtime/write/emulated/0",
+    "/mnt/runtime/full/emulated/0",
+    "/mnt/pass_through/0/emulated/0",
+    "/mnt/installer/0/emulated/0",
+    "/mnt/androidwritable/0/emulated/0",
+    "/mnt/media_rw/emulated/0",
+    "/data/media/0",
+    "/data/user/0",
+    "/data/data",
+    "/data/misc_ce/0",
+    "/data/system_ce/0",
+    "/data/vendor_ce/0",
+    "/data_mirror/data_ce/null/0",
+    "/data_mirror/data_ce/0",
+];
 
 enum CeAvailability {
     Available,
@@ -18,21 +44,15 @@ enum CeAvailability {
 }
 
 pub fn on_boot_completed() {
-    match user_0_ce_availability() {
-        CeAvailability::Available => {
-            apply_after_ce_available("user-0-ce-available-at-boot-completed");
-        }
-        CeAvailability::Locked => {
-            wait_for_user_0_ce_available();
-        }
-        CeAvailability::Unknown => {
-            if should_wait_for_user_0_ce_available() {
-                wait_for_user_0_ce_available();
-            } else {
-                info!("{USER_0_CE_AVAILABLE_PROP} is unavailable on non-FBE device");
-                apply_after_ce_available("boot-completed-without-ce-property");
-            }
-        }
+    let has_ce_sensitive_entries = has_ce_sensitive_config_entries();
+
+    if is_user_0_ce_ready() {
+        apply_after_ce_available("user-0-ce-available-at-boot-completed");
+    } else if has_ce_sensitive_entries {
+        wait_for_user_0_ce_available();
+    } else {
+        info!("{USER_0_CE_AVAILABLE_PROP} is unavailable or not required");
+        apply_after_ce_available("boot-completed-without-ce-property");
     }
 }
 
@@ -194,10 +214,74 @@ fn is_false_property_value(value: &str) -> bool {
     value == "0" || value.eq_ignore_ascii_case("false")
 }
 
-fn should_wait_for_user_0_ce_available() -> bool {
-    crate::android::utils::getprop("ro.crypto.type")
-        .as_deref()
-        .is_some_and(|value| value.eq_ignore_ascii_case("file"))
+fn has_ce_sensitive_config_entries() -> bool {
+    let config = config::read_config();
+    any_config_path(&config, is_user_ce_path)
+}
+
+fn is_configured_ce_path_available() -> bool {
+    let config = config::read_config();
+    any_config_path(&config, |path| is_user_ce_path(path) && Path::new(path).exists())
+}
+
+fn is_user_0_ce_ready() -> bool {
+    matches!(user_0_ce_availability(), CeAvailability::Available)
+        || is_configured_ce_path_available()
+        || is_user_0_unlocked_by_cmd()
+}
+
+fn is_user_0_unlocked_by_cmd() -> bool {
+    let Ok(output) = Command::new("cmd")
+        .args(["user", "is-user-unlocked", "0"])
+        .output()
+    else {
+        return false;
+    };
+
+    if !output.status.success() {
+        return false;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout
+        .split_whitespace()
+        .any(|token| token.eq_ignore_ascii_case("true"))
+}
+
+fn any_config_path<F>(config: &Data, mut predicate: F) -> bool
+where
+    F: FnMut(&str) -> bool,
+{
+    config
+        .sus_path
+        .sus_path
+        .iter()
+        .chain(config.sus_path.sus_path_loop.iter())
+        .chain(config.sus_map.iter())
+        .chain(config.kstat.sus_kstat.iter())
+        .chain(config.kstat.update_kstat.iter())
+        .chain(config.kstat.full_clone.iter())
+        .any(|path| predicate(path.trim()))
+        || config
+            .kstat
+            .statically
+            .iter()
+            .any(|entry| predicate(entry.path.trim()))
+}
+
+fn is_user_ce_path(path: &str) -> bool {
+    let path = path.trim_end_matches('/');
+    USER_0_CE_PATH_PREFIXES
+        .iter()
+        .any(|prefix| is_path_or_child(path, prefix))
+}
+
+fn is_path_or_child(path: &str, prefix: &str) -> bool {
+    if path == prefix {
+        return true;
+    }
+
+    matches!(path.strip_prefix(prefix), Some(rest) if rest.starts_with('/'))
 }
 
 fn wait_for_user_0_ce_available() {
@@ -210,54 +294,33 @@ fn wait_for_user_0_ce_available() {
         }
     }
 
-    let exit_code = match wait_for_user_0_ce_available_inner() {
-        Ok(true) => {
-            apply_after_ce_available("user-0-ce-available");
-            0
-        }
-        Ok(false) => 0,
-        Err(e) => {
-            warn!("failed to wait for {USER_0_CE_AVAILABLE_PROP}: {e}");
-            1
-        }
+    let exit_code = if wait_for_user_0_ce_available_inner() {
+        apply_after_ce_available("user-0-ce-available");
+        0
+    } else {
+        0
     };
     unsafe {
         libc::_exit(exit_code);
     }
 }
 
-fn wait_for_user_0_ce_available_inner() -> Result<bool> {
-    sys_prop::init().context("Failed to initialize system property API")?;
-    let rp = resetprop();
+fn wait_for_user_0_ce_available_inner() -> bool {
+    let started_at = Instant::now();
 
-    info!("waiting for {USER_0_CE_AVAILABLE_PROP}");
+    info!("waiting for {USER_0_CE_AVAILABLE_PROP}, user unlock state, or configured CE paths");
     loop {
-        match user_0_ce_availability() {
-            CeAvailability::Available => return Ok(true),
-            CeAvailability::Locked | CeAvailability::Unknown => {}
+        if is_user_0_ce_ready() {
+            return true;
         }
 
-        let current_value = crate::android::utils::getprop(USER_0_CE_AVAILABLE_PROP);
-        let changed = rp
-            .wait(
-                USER_0_CE_AVAILABLE_PROP,
-                current_value.as_deref(),
-                Some(Duration::from_secs(CE_AVAILABLE_WAIT_TIMEOUT_SECS)),
-            )
-            .context("wait for user 0 CE availability failed")?;
-        if !changed {
-            warn!("timed out waiting for {USER_0_CE_AVAILABLE_PROP}");
-            return Ok(false);
+        let elapsed = started_at.elapsed();
+        if elapsed >= Duration::from_secs(CE_AVAILABLE_WAIT_TIMEOUT_SECS) {
+            warn!("timed out waiting for user 0 CE availability");
+            return false;
         }
-    }
-}
 
-const fn resetprop() -> ResetProp {
-    ResetProp {
-        skip_svc: true,
-        persistent: false,
-        persist_only: false,
-        verbose: false,
-        show_context: false,
+        let remaining = Duration::from_secs(CE_AVAILABLE_WAIT_TIMEOUT_SECS).saturating_sub(elapsed);
+        thread::sleep(remaining.min(Duration::from_secs(CE_AVAILABLE_POLL_INTERVAL_SECS)));
     }
 }
