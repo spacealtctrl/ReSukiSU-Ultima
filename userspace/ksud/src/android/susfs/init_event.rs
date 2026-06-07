@@ -88,9 +88,7 @@ pub fn on_boot_completed() -> Result<()> {
     info!("susfs: initializing CE storage inotify watcher");
     let mut inotify = Inotify::init()?;
 
-    inotify
-        .watches()
-        .add(MOUNTS_PATH, WatchMask::MODIFY)?;
+    inotify.watches().add(MOUNTS_PATH, WatchMask::MODIFY)?;
     info!("susfs: watching {MOUNTS_PATH} for CE storage mount changes");
 
     let mut buffer = [0; 1024];
@@ -138,12 +136,8 @@ pub fn on_boot_completed() -> Result<()> {
 }
 
 pub fn on_services() {
-    let config = config::read_config();
-
     // apply_sus_paths(&config);
     // apply_sus_maps(&config);
-
-    apply_kstat_updates(&config);
 }
 
 fn apply_sus_paths(config: &Data) -> bool {
