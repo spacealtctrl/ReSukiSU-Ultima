@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Adb
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Info
@@ -348,6 +349,8 @@ fun HomePage(
                         isHideSusfsStatus = uiState.isHideSusfsStatus,
                         isHideZygiskImplement = uiState.isHideZygiskImplement,
                         isHideMetaModuleImplement = uiState.isHideMetaModuleImplement,
+                        showKpmInfo = uiState.showKpmInfo,
+                        lkmMode = uiState.systemStatus.lkmMode,
                     )
                 }
 
@@ -762,7 +765,9 @@ private fun InfoCard(
     isSimpleMode: Boolean,
     isHideSusfsStatus: Boolean,
     isHideZygiskImplement: Boolean,
-    isHideMetaModuleImplement: Boolean
+    isHideMetaModuleImplement: Boolean,
+    showKpmInfo: Boolean = false,
+    lkmMode: Boolean? = null
 ) {
     ElevatedCard(
         modifier = Modifier
@@ -918,6 +923,35 @@ private fun InfoCard(
                 )
             }
 
+            if (lkmMode == false && !isSimpleMode && !showKpmInfo) {
+                val kpmNotSupport =
+                    systemInfo.kpmVersion.isEmpty() || systemInfo.kpmVersion.startsWith("Error")
+                val displayText = when {
+                    kpmNotSupport && Natives.isKPMEnabled() -> {
+                        stringResource(
+                            R.string.kpm_not_supported,
+                            stringResource(R.string.kernel_not_patched)
+                        )
+                    }
+
+                    kpmNotSupport && !Natives.isKPMEnabled() -> {
+                        stringResource(
+                            R.string.kpm_not_supported,
+                            stringResource(R.string.kernel_not_enabled)
+                        )
+                    }
+
+                    else -> {
+                        stringResource(R.string.kpm_supported, systemInfo.kpmVersion)
+                    }
+                }
+
+                InfoCardItem(
+                    stringResource(R.string.home_kpm_version),
+                    displayText,
+                    icon = Icons.Default.Archive
+                )
+            }
 
             if (!isSimpleMode && !isHideSusfsStatus && systemInfo.susfsEnabled && systemInfo.susfsVersion.isNotEmpty()) {
                 InfoCardItem(

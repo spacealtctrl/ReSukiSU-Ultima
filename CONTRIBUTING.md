@@ -2,17 +2,15 @@
 
 English and Chinese Simplified are maintained by the developer. If you find inappropriate wording or missing translations, please open an issue or submit a pull request with details.
 
-For languages other than English and Chinese Simplified, please don't create pull requests for translations; instead, use [Crowdin](https://crowdin.com/project/ReSukiSU).
-
 ## Reporting bugs
 
-Before reporting a bug, please first read the [document](https://resukisu.github.io)
+Before reporting a bug, please first read the [repository](https://github.com/spacealtctrl/ReSukiSU-Ultima)
 
 If the issue still exists, please ensure you have tried the **latest CI build**, as the bug may have already been resolved. 
 
 **You can export log from `Settings` page**
 
-When you [Open an issue](https://github.com/ReSukiSU/ReSukiSU/issues), you **must**:
+When you [Open an issue](https://github.com/spacealtctrl/ReSukiSU-Ultima/issues), you **must**:
 
 - Select right issue template
 - Ensure it doesn't duplicate with current issues.
@@ -23,7 +21,7 @@ When you [Open an issue](https://github.com/ReSukiSU/ReSukiSU/issues), you **mus
 
 ## Suggesting features
 
-[Open an issue](https://github.com/ReSukiSU/ReSukiSU/issues) describing the feature you want and your reason for it.
+[Open an issue](https://github.com/spacealtctrl/ReSukiSU-Ultima/issues) describing the feature you want and your reason for it.
 
 ## Code
 

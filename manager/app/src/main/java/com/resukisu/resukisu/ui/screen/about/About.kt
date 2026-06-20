@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Copyright
-import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LargeFlexibleTopAppBar
@@ -161,15 +160,7 @@ fun AboutScreen() {
                             icon = Icons.Rounded.Code,
                             title = stringResource(R.string.get_source_code),
                             description = stringResource(R.string.get_source_code_detail),
-                            onClick = { uriHandler.openUri("https://github.com/ReSukiSU/ReSukiSU") }
-                        )
-                    }
-                    item {
-                        SettingsJumpPageWidget(
-                            icon = Icons.Rounded.Group,
-                            title = stringResource(R.string.join_telegram_group),
-                            description = stringResource(R.string.join_telegram_group_detail),
-                            onClick = { uriHandler.openUri("https://t.me/ReSukiSU") }
+                            onClick = { uriHandler.openUri("https://github.com/spacealtctrl/ReSukiSU-Ultima") }
                         )
                     }
                     item {

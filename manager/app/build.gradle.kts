@@ -161,7 +161,7 @@ android {
 
 base {
     archivesName.set(
-        "ReSukiSU_${managerVersionName}_${managerVersionCode}"
+        "ReSukiSUUltima_${managerVersionName}_${managerVersionCode}"
     )
 }
 

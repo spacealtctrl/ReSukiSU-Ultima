@@ -3,10 +3,12 @@ package com.resukisu.resukisu.ui.screen
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AdminPanelSettings
+import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
@@ -16,9 +18,11 @@ import androidx.compose.ui.unit.Dp
 import com.resukisu.resukisu.R
 import com.resukisu.resukisu.ui.component.ksuIsValid
 import com.resukisu.resukisu.ui.screen.main.HomePage
+import com.resukisu.resukisu.ui.screen.main.KpmPage
 import com.resukisu.resukisu.ui.screen.main.ModulePage
 import com.resukisu.resukisu.ui.screen.main.SettingsPage
 import com.resukisu.resukisu.ui.screen.main.SuperUserPage
+import com.resukisu.resukisu.ui.util.getKpmVersion
 
 enum class BottomBarDestination(
     val direction: @Composable (bottomPadding: Dp) -> Unit,
@@ -33,6 +37,13 @@ enum class BottomBarDestination(
         Icons.Filled.Home,
         Icons.Outlined.Home,
         false
+    ),
+    Kpm(
+        { bottomPadding -> KpmPage(bottomPadding) },
+        R.string.kpm_title,
+        Icons.Filled.Archive,
+        Icons.Outlined.Archive,
+        true
     ),
     SuperUser(
         { bottomPadding -> SuperUserPage(bottomPadding) },
@@ -60,7 +71,13 @@ enum class BottomBarDestination(
         fun getPages(): List<BottomBarDestination> {
             return if (ksuIsValid()) {
                 // 全功能管理器
-                BottomBarDestination.entries.toList()
+                val kpmVersion = runCatching { getKpmVersion() }.getOrNull()
+                BottomBarDestination.entries.filter {
+                    when (it) {
+                        Kpm -> !kpmVersion.isNullOrEmpty()
+                        else -> true
+                    }
+                }
             } else {
                 BottomBarDestination.entries.filter {
                     !it.rootRequired

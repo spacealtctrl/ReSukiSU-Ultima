@@ -25,7 +25,6 @@ object Natives {
     // 34709: breaking: unify uapi
     // 34713: change kernel_su_domain to u:r:ksu:s0
     // 34795: feature id 3 to adb root
-    // 34944: Drop KPM support
     // 34966(upstream 32513): add uapi version
     // 34967(upstream 32514): allowlist v4 root profile flags
     const val MINIMAL_SUPPORTED_KERNEL = 34966
@@ -140,6 +139,7 @@ object Natives {
     external fun isSelinuxHideEnabled(): Boolean
     external fun setSelinuxHideEnabled(enabled: Boolean): Int
 
+    external fun isKPMEnabled(): Boolean
     external fun getHookType(): String
 
     /**

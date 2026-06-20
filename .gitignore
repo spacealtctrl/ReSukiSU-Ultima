@@ -3,3 +3,9 @@ CLAUDE.md
 .DS_Store
 build.sh
 AGENTS.md
+
+# Signing key material — never commit
+resuki.jks
+resuki_base64.txt
+*.jks
+*.keystore

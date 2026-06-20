@@ -1,15 +1,14 @@
-# ReSukiSU
-<img align='right' src='ReSukiSU_blue.svg' width='220px' alt="ReSukiSU Icon">
+# ReSukiSU Ultima
+<img align='right' src='ReSukiSU_blue.svg' width='220px' alt="ReSukiSU Ultima Icon">
 
 
 **English** | [简体中文](./zh/README.md)
 
 A based-on [`SukiSU-Ultra/SukiSU-Ultra`](https://github.com/SukiSU-Ultra/SukiSU-Ultra) fork, added some interesting changes, also make it more stable and build easily.
 
-[![Latest release](https://img.shields.io/github/v/release/ReSukiSU/ReSukiSU?label=Release&logo=github)](https://github.com/ReSukiSU/ReSukiSU/releases/latest)
-[![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/ReSukisu)
+[![Latest release](https://img.shields.io/github/v/release/spacealtctrl/ReSukiSU-Ultima?label=Release&logo=github)](https://github.com/spacealtctrl/ReSukiSU-Ultima/releases/latest)
 [![Kernel License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-orange.svg?logo=gnu)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
-[![Other part License：GPL v3](https://img.shields.io/github/license/ReSukiSU/ReSukiSU?logo=gnu)](/LICENSE)
+[![Other part License：GPL v3](https://img.shields.io/github/license/spacealtctrl/ReSukiSU-Ultima?logo=gnu)](/LICENSE)
 
 ## Features
 
@@ -17,12 +16,13 @@ A based-on [`SukiSU-Ultra/SukiSU-Ultra`](https://github.com/SukiSU-Ultra/SukiSU-
 2. Module system based on [metamodules](https://kernelsu.org/guide/metamodule.html): Pluggable infrastructure for systemless modifications.
 3. [App Profile](https://kernelsu.org/guide/app-profile.html): Lock up the root power in a cage
 4. Support non-GKI and GKI 1.0
-5. Tweaks to the manager theme and the built-in susfs management tool.
-6. Multi manager support, for default [Official KernelSU](https://github.com/tiann/KernelSU)/[RKSU](https://github.com/rsuntk/KernelSU)/[MKSU](https://github.com/5ec1cff/KernelSU)/[SukiSU](https://github.com/SukiSU-Ultra/SukiSU-Ultra) is supported work as manager with ReSukiSU's kernel
+5. KPM Support
+6. Tweaks to the manager theme and the built-in susfs management tool.
+7. Multi manager support, for default [Official KernelSU](https://github.com/tiann/KernelSU)/[RKSU](https://github.com/rsuntk/KernelSU)/[MKSU](https://github.com/5ec1cff/KernelSU)/[SukiSU](https://github.com/SukiSU-Ultra/SukiSU-Ultra) is supported work as manager with ReSukiSU Ultima's kernel
 
 ## Compatibility Status
 
-- ReSukiSU officially supports Android GKI 2.0 devices (kernel 5.10+).
+- ReSukiSU Ultima officially supports Android GKI 2.0 devices (kernel 5.10+).
 
 - Older kernels (3.4+) are also compatible, but the kernel will have to be built manually.
 
@@ -39,11 +39,22 @@ A based-on [`SukiSU-Ultra/SukiSU-Ultra`](https://github.com/SukiSU-Ultra/SukiSU-
 
 ## Integration
 
-See the [documentation](https://ReSukiSU.github.io).
+See the [repository](https://github.com/spacealtctrl/ReSukiSU-Ultima).
 
-## Translation
+## KPM Support
 
-If you need to submit a translation for the manager, please go to [Crowdin](https://crowdin.com/project/ReSukiSU).
+- Based on KernelPatch, we removed features redundant with KSU and retained only KPM support.
+- Work in Progress: Expanding APatch compatibility by integrating additional functions to ensure compatibility across different implementations.
+
+**Open-source repository**: [https://github.com/ShirkNeko/SukiSU_KernelPatch_patch](https://github.com/ShirkNeko/SukiSU_KernelPatch_patch)
+
+**KPM template**: [https://github.com/udochina/KPM-Build-Anywhere](https://github.com/udochina/KPM-Build-Anywhere)
+
+> [!Note]
+>
+> 1. Requires `CONFIG_KPM=y`
+> 2. Non-GKI devices requires `CONFIG_KALLSYMS=y` and `CONFIG_KALLSYMS_ALL=y`
+> 3. For kernels below `4.19`, backporting from `set_memory.h` from `4.19` is required.
 
 ## Sponsor
 

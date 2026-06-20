@@ -36,7 +36,7 @@ class KernelSUApplication : Application(), ViewModelStoreOwner {
 
     lateinit var okhttpClient: OkHttpClient
     lateinit var preferencesRepository: AppPreferencesRepository
-    val UserAgent = "ReSukiSU/${BuildConfig.VERSION_CODE}"
+    val UserAgent = "ReSukiSUUltima/${BuildConfig.VERSION_CODE}"
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val appViewModelStore by lazy { ViewModelStore() }
     private var preferencesRepositoryStarted = false

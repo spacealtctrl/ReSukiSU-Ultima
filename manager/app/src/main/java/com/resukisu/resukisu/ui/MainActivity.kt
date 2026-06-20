@@ -581,7 +581,9 @@ class MainActivity : ComponentActivity() {
                                     entry<Route.KernelFlash> { key ->
                                         KernelFlashScreen(
                                             key.kernelUri,
-                                            key.selectedSlot
+                                            key.selectedSlot,
+                                            key.kpmPatchEnabled,
+                                            key.kpmUndoPatch
                                         )
                                     }
                                 },
