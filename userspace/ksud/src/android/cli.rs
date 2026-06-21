@@ -9,7 +9,7 @@ use crate::{
     android::{
         debug, dynamic_manager, feature, init_event, ksucalls,
         module::{self, module_config, regenerate_preinit_rc},
-        profile, sepolicy, su, sulog, susfs, uapi, umount_config, utils,
+        profile, sentinel, sepolicy, su, sulog, susfs, uapi, umount_config, utils,
     },
     apk_sign, assets,
     boot_patch::{BootPatchArgs, BootRestoreArgs},
@@ -123,6 +123,12 @@ enum Commands {
     Feature {
         #[command(subcommand)]
         command: Feature,
+    },
+
+    /// Sentinel: detect apps probing for root
+    Sentinel {
+        #[command(subcommand)]
+        command: Sentinel,
     },
 
     /// Patch boot or init_boot images to apply KernelSU
@@ -477,6 +483,16 @@ enum Feature {
 }
 
 #[derive(clap::Subcommand, Debug)]
+enum Sentinel {
+    /// Enable root-probe detection
+    On,
+    /// Disable root-probe detection
+    Off,
+    /// Stream root-probe events to stdout (blocks)
+    Watch,
+}
+
+#[derive(clap::Subcommand, Debug)]
 enum Kernel {
     /// Nuke ext4 sysfs
     NukeExt4Sysfs {
@@ -796,6 +812,12 @@ pub fn run() -> Result<()> {
             Feature::Check { id } => feature::check_feature(&id),
             Feature::Load => feature::load_config_and_apply(),
             Feature::Save => feature::save_config(),
+        },
+
+        Commands::Sentinel { command } => match command {
+            Sentinel::On => sentinel::enable(),
+            Sentinel::Off => sentinel::disable(),
+            Sentinel::Watch => sentinel::watch(),
         },
 
         Commands::Debug { command } => match command {

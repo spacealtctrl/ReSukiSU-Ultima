@@ -11,6 +11,7 @@ mod module;
 mod profile;
 mod resetprop;
 mod restorecon;
+mod sentinel;
 mod sepolicy;
 mod su;
 mod sulog;

@@ -146,6 +146,10 @@ struct ksu_get_sulog_fd_cmd {
     __u32 flags; /* Input: reserved for future use, must be 0 */
 };
 
+struct ksu_get_sentinel_fd_cmd {
+    __u32 flags; /* Input: reserved for future use, must be 0 */
+};
+
 struct ksu_manage_try_umount_cmd {
     __aligned_u64 arg; /* char ptr, this is the mountpoint */
     __u32 flags; /* this is the flag we use for it */
@@ -249,6 +253,7 @@ DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_MANAGE_TRY_UMOUNT, _IOC(_IOC_WRITE, 'K', 
 DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_SET_INIT_PGRP, _IO('K', 19))
 DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_GET_SULOG_FD, _IOW('K', 20, struct ksu_get_sulog_fd_cmd))
 DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_DISABLE_ESCAPE_TO_ROOT, _IO('K', 21))
+DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_SENTINEL_GET_FD, _IOW('K', 22, struct ksu_get_sentinel_fd_cmd))
 
 // Downstream add IOCTL command definitions
 DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_GET_FULL_VERSION, _IOC(_IOC_READ, 'K', 100, 0))

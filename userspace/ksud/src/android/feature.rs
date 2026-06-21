@@ -26,6 +26,7 @@ pub enum FeatureId {
     Sulog = 2,
     AdbRoot = 3,
     SelinuxHide = 4,
+    Sentinel = 5,
 }
 
 impl FeatureId {
@@ -36,6 +37,7 @@ impl FeatureId {
             2 => Some(Self::Sulog),
             3 => Some(Self::AdbRoot),
             4 => Some(Self::SelinuxHide),
+            5 => Some(Self::Sentinel),
             _ => None,
         }
     }
@@ -47,6 +49,7 @@ impl FeatureId {
             Self::Sulog => "sulog",
             Self::AdbRoot => "adb_root",
             Self::SelinuxHide => "selinux_hide",
+            Self::Sentinel => "sentinel",
         }
     }
 
@@ -65,6 +68,9 @@ impl FeatureId {
             Self::SelinuxHide => {
                 "SELinux Hide - sanitize /sys/fs/selinux access results for app UIDs"
             }
+            Self::Sentinel => {
+                "Sentinel - detect apps probing for root and surface them for cloaking"
+            }
         }
     }
 }
@@ -76,6 +82,7 @@ fn parse_feature_id(name: &str) -> Result<FeatureId> {
         "sulog" | "2" => Ok(FeatureId::Sulog),
         "adb_root" | "3" => Ok(FeatureId::AdbRoot),
         "selinux_hide" | "4" => Ok(FeatureId::SelinuxHide),
+        "sentinel" | "5" => Ok(FeatureId::Sentinel),
         _ => bail!("Unknown feature: {name}"),
     }
 }

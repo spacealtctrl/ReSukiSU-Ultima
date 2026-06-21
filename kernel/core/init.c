@@ -29,6 +29,7 @@
 #include "compat/kernel_compat.h"
 
 #include "feature/sulog.h"
+#include "feature/sentinel.h"
 #include "feature/adb_root.h"
 #include "feature/dynamic_manager.h"
 #include "feature/sucompat.h"
@@ -207,6 +208,7 @@ int __init kernelsu_init(void)
     ksu_selinux_init();
     ksu_feature_init();
     ksu_sulog_init();
+    ksu_sentinel_init();
     ksu_adb_root_init();
     ksu_selinux_hide_init();
 
@@ -286,6 +288,7 @@ void __exit kernelsu_exit(void)
 
     ksu_selinux_hide_exit();
     ksu_adb_root_exit();
+    ksu_sentinel_exit();
     ksu_sulog_exit();
     ksu_feature_exit();
 

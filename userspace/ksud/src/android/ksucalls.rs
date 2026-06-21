@@ -186,6 +186,12 @@ pub fn get_sulog_fd() -> std::io::Result<RawFd> {
     Ok(result)
 }
 
+pub fn get_sentinel_fd() -> std::io::Result<RawFd> {
+    let mut cmd = uapi::ksu_get_sentinel_fd_cmd { flags: 0 };
+    let result = ksuctl(uapi::KSU_IOCTL_SENTINEL_GET_FD, &raw mut cmd)?;
+    Ok(result)
+}
+
 /// Get mark status for a process (pid=0 returns total marked count)
 pub fn mark_get(pid: i32) -> std::io::Result<u32> {
     let mut cmd = uapi::ksu_manage_mark_cmd {

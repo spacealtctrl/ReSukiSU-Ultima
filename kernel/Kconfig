@@ -80,6 +80,16 @@ config KPM
 	  This option is suitable for scenarios where you need to force KPM to be enabled.
 	  but it may affect system stability.
 
+config KSU_SENTINEL
+    bool "Enable Sentinel root-probe detection"
+    depends on KSU
+    default y
+    help
+	  Sentinel watches for apps probing for root (e.g. access("/system/bin/su"))
+	  and streams those probe events to the manager so the offending app can be
+	  cloaked. Detection is opt-in at runtime via the manager; enforcement reuses
+	  the existing app_profile (umount + root-deny). Low overhead when disabled.
+
 choice
 	prompt "KernelSU Hooking Method"
 	depends on KSU
