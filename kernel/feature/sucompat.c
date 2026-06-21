@@ -34,7 +34,6 @@
 #include "runtime/ksud.h"
 #include "feature/sucompat.h"
 #include "policy/app_profile.h"
-#include "feature/sentinel.h"
 #ifdef CONFIG_KSU_TRACEPOINT_HOOK
 #include "hook/syscall_hook.h"
 #else
@@ -358,15 +357,8 @@ int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
     }
 #endif
 
-    if (!ksu_is_allow_uid_for_current(ksu_get_uid_t(current_uid()))) {
-        /* Sentinel: a non-root app asking whether su exists is a root probe. */
-        if (ksu_sentinel_is_enabled()) {
-            ksu_strncpy_from_user_nofault(path, *filename_user, sizeof(path));
-            if (unlikely(!memcmp(path, su_path, sizeof(su_path))))
-                ksu_sentinel_report(ksu_get_uid_t(current_uid()), su_path, KSU_SENTINEL_PROBE_SU);
-        }
+    if (!ksu_is_allow_uid_for_current(ksu_get_uid_t(current_uid())))
         return 0;
-    }
 
     ksu_strncpy_from_user_nofault(path, *filename_user, sizeof(path));
 

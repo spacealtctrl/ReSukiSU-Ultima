@@ -4,10 +4,6 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 
-/* Kernel-side mirror of enum ksu_sentinel_kind (uapi/sentinel.h), so the
- * always-compiled hook sites depend only on this kernel header. Keep in sync. */
-#define KSU_SENTINEL_PROBE_SU 1
-
 #ifdef CONFIG_KSU_SENTINEL
 bool ksu_sentinel_is_enabled(void);
 void ksu_sentinel_report(uid_t uid, const char *path, __u16 kind);
