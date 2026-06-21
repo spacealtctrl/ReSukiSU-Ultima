@@ -109,6 +109,8 @@ void ksu_sentinel_report(uid_t uid, const char *path, __u16 kind)
     if (!count)
         return;
 
+    pr_info_ratelimited("sentinel: probe uid=%u pid=%d path=%s x%u\n", uid, current->pid, path ? path : "?", count);
+
     memset(&ev, 0, sizeof(ev));
     ev.version = KSU_SENTINEL_EVENT_VERSION;
     ev.kind = kind;
