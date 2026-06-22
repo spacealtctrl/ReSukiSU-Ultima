@@ -332,3 +332,10 @@ pub fn history() -> Result<()> {
     );
     Ok(())
 }
+
+/// Clear the persistent probe history.
+pub fn clear() -> Result<()> {
+    ksucalls::sentinel_history_clear().context("failed to clear sentinel history")?;
+    println!("sentinel: history cleared");
+    Ok(())
+}

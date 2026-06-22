@@ -102,6 +102,7 @@ import com.resukisu.resukisu.ui.screen.SulogScreen
 import com.resukisu.resukisu.ui.screen.TemplateEditorScreen
 import com.resukisu.resukisu.ui.screen.SentinelAppDetailScreen
 import com.resukisu.resukisu.ui.screen.SentinelScreen
+import com.resukisu.resukisu.ui.screen.SentinelSpyScreen
 import com.resukisu.resukisu.ui.screen.UmountManagerScreen
 import com.resukisu.resukisu.ui.screen.about.AboutScreen
 import com.resukisu.resukisu.ui.screen.about.OpenSourceLicenseScreen
@@ -582,6 +583,7 @@ class MainActivity : ComponentActivity() {
                                     entry<Route.UmountManager> { UmountManagerScreen() }
                                     entry<Route.Sentinel> { SentinelScreen() }
                                     entry<Route.SentinelApp> { key -> SentinelAppDetailScreen(key.uid) }
+                                    entry<Route.SentinelSpy> { key -> SentinelSpyScreen(key.uid) }
                                     entry<Route.KernelFlash> { key ->
                                         KernelFlashScreen(
                                             key.kernelUri,

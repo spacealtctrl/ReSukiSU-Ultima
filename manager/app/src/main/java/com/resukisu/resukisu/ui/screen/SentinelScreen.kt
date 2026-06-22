@@ -1,7 +1,9 @@
 package com.resukisu.resukisu.ui.screen
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -24,10 +27,12 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +45,7 @@ import com.resukisu.resukisu.ui.navigation.Route
 import com.resukisu.resukisu.ui.util.SentinelHistEntry
 import com.resukisu.resukisu.ui.util.getSentinelCloaked
 import com.resukisu.resukisu.ui.util.getSentinelHistory
+import com.resukisu.resukisu.ui.util.clearSentinelHistory
 import com.resukisu.resukisu.ui.util.getSentinelStatus
 import com.resukisu.resukisu.ui.util.sentinelCloak
 import com.resukisu.resukisu.ui.util.uncloakRestore
@@ -62,6 +68,7 @@ fun SentinelScreen() {
     var auto by remember { mutableStateOf(false) }
     var probes by remember { mutableStateOf<List<SentinelHistEntry>>(emptyList()) }
     var cloaked by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var shownCount by remember { mutableIntStateOf(5) }
 
     fun label(uid: Int): String {
         val pm = context.packageManager
@@ -85,7 +92,7 @@ fun SentinelScreen() {
         // Recent probes come from the kernel's persistent history (survives until
         // reboot), so they're not lost when the screen or app is closed.
         while (true) {
-            probes = getSentinelHistory().sortedByDescending { it.count }
+            probes = getSentinelHistory().sortedByDescending { it.lastNs }
             cloaked = getSentinelCloaked()
             delay(3000)
         }
@@ -131,11 +138,36 @@ fun SentinelScreen() {
                 )
             }
 
-            item { SectionHeader(stringResource(R.string.sentinel_recent_probes)) }
+            item {
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.sentinel_recent_probes),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    if (probes.isNotEmpty()) {
+                        TextButton(onClick = {
+                            scope.launch {
+                                clearSentinelHistory()
+                                probes = emptyList()
+                                shownCount = 5
+                            }
+                        }) { Text("Clear") }
+                    }
+                }
+            }
             if (probes.isEmpty()) {
                 item { EmptyHint(stringResource(R.string.sentinel_no_probes)) }
             } else {
-                items(probes) { p ->
+                // Most-recent first; show 5, "More" reveals 5 at a time.
+                items(probes.take(shownCount)) { p ->
                     val isCloaked = cloaked.contains(p.uid)
                     // Recent probes are not tappable; cloak one first to manage it.
                     ListItem(
@@ -160,13 +192,21 @@ fun SentinelScreen() {
                         },
                     )
                 }
+                if (probes.size > shownCount) {
+                    item {
+                        TextButton(
+                            onClick = { shownCount += 5 },
+                            modifier = Modifier.padding(start = 8.dp),
+                        ) { Text("Show more (${probes.size - shownCount})") }
+                    }
+                }
             }
 
             item { SectionHeader(stringResource(R.string.sentinel_cloaked_apps)) }
             if (cloaked.isEmpty()) {
                 item { EmptyHint(stringResource(R.string.sentinel_no_cloaked)) }
             } else {
-                items(cloaked) { uid ->
+                items(cloaked.sortedBy { label(it).lowercase() }) { uid ->
                     ListItem(
                         modifier = Modifier.clickable { navigator.push(Route.SentinelApp(uid)) },
                         leadingContent = { Icon(Icons.Filled.VisibilityOff, contentDescription = null) },

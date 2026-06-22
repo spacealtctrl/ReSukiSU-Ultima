@@ -235,6 +235,18 @@ suspend fun uncloakRestore(uid: Int) = withContext(Dispatchers.IO) {
     }
 }
 
+/** Clear the kernel's persistent probe history (empties Recent probes). */
+suspend fun clearSentinelHistory(): Boolean = withContext(Dispatchers.IO) {
+    ShellUtils.fastCmdResult(getRootShell(), "${getKsuDaemonPath()} sentinel clear")
+}
+
+/** Dump the most recent logcat lines for a uid (the Spy log source). */
+suspend fun dumpAppLog(uid: Int, lines: Int = 400): List<String> = withContext(Dispatchers.IO) {
+    getRootShell().newJob()
+        .add("logcat -d --uid=$uid -v threadtime -t $lines")
+        .to(ArrayList<String>(), null).exec().out
+}
+
 fun install() {
     val start = SystemClock.elapsedRealtime()
     val libadbroot = File(ksuApp.applicationInfo.nativeLibraryDir, "libadbroot.so").absolutePath

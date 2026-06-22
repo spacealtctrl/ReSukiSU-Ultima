@@ -266,6 +266,17 @@ pub fn sentinel_history() -> std::io::Result<Vec<uapi::ksu_sentinel_hist_entry>>
     Ok(buf)
 }
 
+/// Clear the kernel's persistent probe history (flags bit0 in pad).
+pub fn sentinel_history_clear() -> std::io::Result<()> {
+    let mut cmd = uapi::ksu_sentinel_history_cmd {
+        count: 0,
+        pad: 1,
+        entries: 0,
+    };
+    ksuctl(uapi::KSU_IOCTL_SENTINEL_HISTORY_RUST, &raw mut cmd)?;
+    Ok(())
+}
+
 /// Get mark status for a process (pid=0 returns total marked count)
 pub fn mark_get(pid: i32) -> std::io::Result<u32> {
     let mut cmd = uapi::ksu_manage_mark_cmd {

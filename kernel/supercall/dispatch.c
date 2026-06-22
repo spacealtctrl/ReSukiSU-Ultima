@@ -962,6 +962,12 @@ static int do_sentinel_history(void __user *arg)
         return -EFAULT;
     }
 
+    /* flags bit0 in the (otherwise-padding) field: clear the history */
+    if (cmd.pad & 1) {
+        ksu_sentinel_history_clear();
+        return 0;
+    }
+
     cap = cmd.count;
     if (cap > 1024)
         cap = 1024; /* sanity bound */

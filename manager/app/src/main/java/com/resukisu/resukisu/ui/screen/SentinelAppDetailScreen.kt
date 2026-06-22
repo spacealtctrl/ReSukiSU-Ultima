@@ -3,6 +3,7 @@ package com.resukisu.resukisu.ui.screen
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.PermissionInfo
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -41,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.resukisu.resukisu.ui.component.settings.AppBackButton
 import com.resukisu.resukisu.ui.navigation.LocalNavigator
+import com.resukisu.resukisu.ui.navigation.Route
 import com.resukisu.resukisu.ui.util.forceStopApp
 import com.resukisu.resukisu.ui.util.getSentinelCloaked
 import com.resukisu.resukisu.ui.util.getSentinelHistory
@@ -177,6 +180,14 @@ fun SentinelAppDetailScreen(uid: Int) {
             }
 
             item { SectionHeader("Actions") }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable { navigator.push(Route.SentinelSpy(uid)) },
+                    leadingContent = { Icon(Icons.Filled.Visibility, contentDescription = null) },
+                    headlineContent = { Text("Spy — live activity log") },
+                    supportingContent = { Text("Everything it logs: Play Store, attestation, failures") },
+                )
+            }
             item {
                 ListItem(
                     leadingContent = { Icon(Icons.Filled.VisibilityOff, contentDescription = null) },
