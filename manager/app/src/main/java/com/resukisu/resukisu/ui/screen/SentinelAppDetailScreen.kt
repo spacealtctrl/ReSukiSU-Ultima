@@ -196,9 +196,15 @@ fun SentinelAppDetailScreen(uid: Int) {
                     trailingContent = {
                         Switch(checked = isCloaked, onCheckedChange = { on ->
                             scope.launch {
-                                if (on) withContext(Dispatchers.IO) { sentinelCloak(uid) }
-                                else uncloakRestore(uid)
-                                refresh()
+                                if (on) {
+                                    withContext(Dispatchers.IO) { sentinelCloak(uid) }
+                                    refresh()
+                                } else {
+                                    // Reset to default and leave: an uncloaked app
+                                    // can't be managed here, so return to the list.
+                                    uncloakRestore(uid)
+                                    navigator.pop()
+                                }
                             }
                         })
                     },
