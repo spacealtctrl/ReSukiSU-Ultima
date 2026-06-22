@@ -195,6 +195,46 @@ fun setAppEnabled(pkg: String, enabled: Boolean): Boolean =
         if (enabled) "pm enable $pkg" else "pm disable-user --user 0 $pkg"
     )
 
+// ---- per-permission control: block (revoke) / spoof (appops ignore: app sees
+// "granted" but the op silently returns nothing) / allow (restore) ----
+
+/** Map a runtime permission to its appop name (null if not appop-controllable). */
+internal fun opForPermission(perm: String): String? = when (perm) {
+    "android.permission.ACCESS_FINE_LOCATION" -> "FINE_LOCATION"
+    "android.permission.ACCESS_COARSE_LOCATION" -> "COARSE_LOCATION"
+    "android.permission.ACCESS_BACKGROUND_LOCATION" -> "FINE_LOCATION"
+    "android.permission.POST_NOTIFICATIONS" -> "POST_NOTIFICATION"
+    else -> perm.takeIf { it.startsWith("android.permission.") }
+        ?.removePrefix("android.permission.")?.takeIf { '.' !in it }
+}
+
+/** Current appop modes for a package, op-name -> mode (allow/ignore/deny/…). */
+suspend fun getAppOpsModes(pkg: String): Map<String, String> = withContext(Dispatchers.IO) {
+    val out = getRootShell().newJob()
+        .add("cmd appops get $pkg").to(ArrayList<String>(), null).exec().out
+    val map = mutableMapOf<String, String>()
+    val re = Regex("([A-Z_]+):\\s*(allow|ignore|deny|default|foreground)")
+    for (line in out) re.find(line)?.let { map[it.groupValues[1]] = it.groupValues[2] }
+    map
+}
+
+/** mode: "allow" | "block" | "spoof". */
+fun setPermissionMode(pkg: String, perm: String, mode: String) {
+    val shell = getRootShell()
+    val op = opForPermission(perm)
+    when (mode) {
+        "block" -> shell.newJob().add("pm revoke $pkg $perm").exec()
+        "spoof" -> {
+            shell.newJob().add("pm grant $pkg $perm").exec()
+            if (op != null) shell.newJob().add("cmd appops set $pkg $op ignore").exec()
+        }
+        else -> {
+            shell.newJob().add("pm grant $pkg $perm").exec()
+            if (op != null) shell.newJob().add("cmd appops set $pkg $op allow").exec()
+        }
+    }
+}
+
 fun install() {
     val start = SystemClock.elapsedRealtime()
     val libadbroot = File(ksuApp.applicationInfo.nativeLibraryDir, "libadbroot.so").absolutePath
