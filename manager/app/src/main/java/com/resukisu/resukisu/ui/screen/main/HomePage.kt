@@ -453,6 +453,18 @@ private fun TopBar(
         ),
         actions = {
             if (uiState.isCoreDataLoaded) {
+                // Sentinel (root-probe detector)
+                KsuIsValid {
+                    IconButton(onClick = {
+                        navigator.push(Route.Sentinel)
+                    }) {
+                        Icon(
+                            imageVector = Icons.Filled.Shield,
+                            contentDescription = stringResource(R.string.sentinel_title)
+                        )
+                    }
+                }
+
                 // SuSFS 配置按钮
                 if (uiState.systemInfo.susfsVersionSupported) {
                     IconButton(onClick = {
@@ -462,18 +474,6 @@ private fun TopBar(
                             text = "ඞ",
                             fontSize = 22.sp,
                             color = LocalContentColor.current
-                        )
-                    }
-                }
-
-                // Sentinel (root-probe detector)
-                KsuIsValid {
-                    IconButton(onClick = {
-                        navigator.push(Route.Sentinel)
-                    }) {
-                        Icon(
-                            imageVector = Icons.Filled.Shield,
-                            contentDescription = stringResource(R.string.sentinel_title)
                         )
                     }
                 }

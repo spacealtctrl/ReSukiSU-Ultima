@@ -62,11 +62,16 @@ fun SentinelScreen() {
     var cloaked by remember { mutableStateOf<List<Int>>(emptyList()) }
 
     fun label(uid: Int): String {
-        val pkg = context.packageManager.getPackagesForUid(uid)?.firstOrNull() ?: return "uid $uid"
-        return runCatching {
-            val ai = context.packageManager.getApplicationInfo(pkg, 0)
-            context.packageManager.getApplicationLabel(ai).toString()
-        }.getOrDefault(pkg)
+        val pm = context.packageManager
+        // Prefer the loadable app label of any package sharing this uid.
+        pm.getPackagesForUid(uid)?.forEach { pkg ->
+            runCatching {
+                return pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+            }
+        }
+        // Fall back to the first package name, then the kernel uid name.
+        pm.getPackagesForUid(uid)?.firstOrNull()?.let { return it }
+        return pm.getNameForUid(uid) ?: "uid $uid"
     }
 
     // initial load, then poll the probe feed while enabled
