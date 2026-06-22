@@ -13,7 +13,7 @@ set -e
 
 ZDIR="${1:-/data/adb/ksu/zygisk}"
 SRC="$ZDIR/payload"
-cd "$ZDIR"
+cd "$ZDIR" || exit 1
 
 # Pick the ABI list with the most entries (Tango devices split it across props).
 CPU_ABIS_PROP1=$(getprop ro.system.product.cpu.abilist)
@@ -61,7 +61,7 @@ fi
 chmod -R 0755 bin
 [ -d lib64 ] && { chmod 0644 lib64/* ; chcon u:object_r:system_lib_file:s0 lib64/* 2>/dev/null || true ; }
 [ -d lib ]   && { chmod 0644 lib/*   ; chcon u:object_r:system_lib_file:s0 lib/*   2>/dev/null || true ; }
-[ -f machikado.$M64 ] && chmod 0755 "machikado.$M64"
-[ -f machikado.$M32 ] && chmod 0755 "machikado.$M32"
+[ -f "machikado.$M64" ] && chmod 0755 "machikado.$M64"
+[ -f "machikado.$M32" ] && chmod 0755 "machikado.$M32"
 
 exit 0

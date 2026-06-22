@@ -12,7 +12,7 @@ ZDIR=/data/adb/ksu/zygisk
 [ -f "$ZDIR/enable" ] || exit 0
 [ -d "$ZDIR/bin" ] || exit 0
 
-cd "$ZDIR"
+cd "$ZDIR" || exit 1
 
 # Working dir expected by the engine.
 export TMP_PATH=/data/adb/rezygisk
