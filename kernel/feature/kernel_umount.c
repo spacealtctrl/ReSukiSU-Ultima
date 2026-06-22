@@ -23,6 +23,7 @@
 #include "klog.h" // IWYU pragma: keep
 #include "compat/kernel_compat.h"
 #include "policy/allowlist.h"
+#include "feature/sentinel.h"
 #include "selinux/selinux.h"
 #include "policy/feature.h"
 #include "runtime/ksud_boot.h"
@@ -144,14 +145,15 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
         return 0;
     }
 
-    if (!ksu_uid_should_umount(new_uid) && !is_isolated_process(new_uid)) {
+    if (!ksu_uid_should_umount(new_uid) && !is_isolated_process(new_uid) && !ksu_sentinel_is_cloaked(new_uid)) {
         return 0;
     }
 
     // no need to check zygote here, because we already check it in the setuid call.
 
     // in susfs's implementation, ksu_kernel_umount is ignored, so this keeps the same behavior.
-    if (!ksu_kernel_umount_enabled) {
+    // Sentinel-cloaked uids are umounted even when the global toggle is off.
+    if (!ksu_kernel_umount_enabled && !ksu_sentinel_is_cloaked(new_uid)) {
         goto skip_umount_task;
     }
 

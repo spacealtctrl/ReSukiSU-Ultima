@@ -192,6 +192,49 @@ pub fn get_sentinel_fd() -> std::io::Result<RawFd> {
     Ok(result)
 }
 
+/// Sentinel cloak op (add=0, remove=1, query=2, clear=4, set_auto=5, get_auto=6).
+/// Returns the cmd's `value` field (used by query/get_auto).
+pub fn sentinel_cloak_op(op: u32, uid: u32, value: u32) -> std::io::Result<u32> {
+    let mut cmd = uapi::ksu_sentinel_cloak_cmd {
+        op,
+        uid,
+        value,
+        count: 0,
+        uids: 0,
+    };
+    ksuctl(uapi::KSU_IOCTL_SENTINEL_CLOAK_RUST, &raw mut cmd)?;
+    Ok(cmd.value)
+}
+
+/// Fetch the list of currently-cloaked uids.
+pub fn sentinel_cloak_list() -> std::io::Result<Vec<u32>> {
+    // op=3 (LIST); first query the count with a null buffer
+    let mut q = uapi::ksu_sentinel_cloak_cmd {
+        op: 3,
+        uid: 0,
+        value: 0,
+        count: 0,
+        uids: 0,
+    };
+    ksuctl(uapi::KSU_IOCTL_SENTINEL_CLOAK_RUST, &raw mut q)?;
+    let total = q.count as usize;
+    if total == 0 {
+        return Ok(Vec::new());
+    }
+    let mut buf = vec![0u32; total];
+    let mut cmd = uapi::ksu_sentinel_cloak_cmd {
+        op: 3,
+        uid: 0,
+        value: 0,
+        count: total as u32,
+        uids: buf.as_mut_ptr() as u64,
+    };
+    ksuctl(uapi::KSU_IOCTL_SENTINEL_CLOAK_RUST, &raw mut cmd)?;
+    let n = (cmd.count as usize).min(total);
+    buf.truncate(n);
+    Ok(buf)
+}
+
 /// Get mark status for a process (pid=0 returns total marked count)
 pub fn mark_get(pid: i32) -> std::io::Result<u32> {
     let mut cmd = uapi::ksu_manage_mark_cmd {

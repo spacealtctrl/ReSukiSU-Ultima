@@ -44,6 +44,38 @@ pub fn disable() -> Result<()> {
     feature::set_feature("sentinel", 0)
 }
 
+/* cloak ops mirror enum ksu_sentinel_cloak_op: 0=add 1=remove 5=set_auto */
+pub fn cloak(uid: u32) -> Result<()> {
+    ksucalls::sentinel_cloak_op(0, uid, 0).context("cloak failed")?;
+    println!("sentinel: cloaked uid {uid}");
+    Ok(())
+}
+
+pub fn uncloak(uid: u32) -> Result<()> {
+    ksucalls::sentinel_cloak_op(1, uid, 0).context("uncloak failed")?;
+    println!("sentinel: uncloaked uid {uid}");
+    Ok(())
+}
+
+pub fn cloaked() -> Result<()> {
+    let list = ksucalls::sentinel_cloak_list().context("failed to list cloaked uids")?;
+    if list.is_empty() {
+        println!("sentinel: no cloaked uids");
+    } else {
+        println!("sentinel: cloaked uids:");
+        for uid in list {
+            println!("  {uid}");
+        }
+    }
+    Ok(())
+}
+
+pub fn set_auto(on: bool) -> Result<()> {
+    ksucalls::sentinel_cloak_op(5, 0, u32::from(on)).context("failed to set auto-cloak")?;
+    println!("sentinel: auto-cloak {}", if on { "on" } else { "off" });
+    Ok(())
+}
+
 /// Stream root-probe events from the kernel to stdout (blocks until the fd
 /// closes or the process is interrupted). Handy for `adb shell` testing.
 pub fn watch() -> Result<()> {

@@ -881,6 +881,75 @@ static int do_sentinel_get_fd(void __user *arg)
     return ksu_install_sentinel_fd();
 }
 
+static int do_sentinel_cloak(void __user *arg)
+{
+    struct ksu_sentinel_cloak_cmd cmd;
+    int ret = 0;
+
+    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
+        pr_err("sentinel_cloak: copy_from_user failed\n");
+        return -EFAULT;
+    }
+
+    switch (cmd.op) {
+    case KSU_SENTINEL_CLOAK_ADD:
+        ret = ksu_sentinel_cloak_add(cmd.uid);
+        break;
+    case KSU_SENTINEL_CLOAK_REMOVE:
+        ret = ksu_sentinel_cloak_remove(cmd.uid);
+        break;
+    case KSU_SENTINEL_CLOAK_CLEAR:
+        ksu_sentinel_cloak_clear();
+        break;
+    case KSU_SENTINEL_CLOAK_SET_AUTO:
+        ksu_sentinel_set_auto_cloak(cmd.value != 0);
+        break;
+    case KSU_SENTINEL_CLOAK_QUERY:
+        cmd.value = ksu_sentinel_is_cloaked(cmd.uid) ? 1 : 0;
+        if (copy_to_user(arg, &cmd, sizeof(cmd)))
+            return -EFAULT;
+        break;
+    case KSU_SENTINEL_CLOAK_GET_AUTO:
+        cmd.value = ksu_sentinel_get_auto_cloak() ? 1 : 0;
+        if (copy_to_user(arg, &cmd, sizeof(cmd)))
+            return -EFAULT;
+        break;
+    case KSU_SENTINEL_CLOAK_LIST: {
+        uid_t *buf;
+        int total;
+        u32 cap = cmd.count;
+
+        if (cap > 4096)
+            cap = 4096; /* sanity bound */
+        if (cap == 0) {
+            cmd.count = ksu_sentinel_cloak_list(NULL, 0);
+            if (copy_to_user(arg, &cmd, sizeof(cmd)))
+                return -EFAULT;
+            break;
+        }
+        buf = kmalloc_array(cap, sizeof(uid_t), GFP_KERNEL);
+        if (!buf)
+            return -ENOMEM;
+        total = ksu_sentinel_cloak_list(buf, cap);
+        if (cmd.uids) {
+            u32 n = ((u32)total < cap) ? (u32)total : cap;
+            if (copy_to_user((uid_t __user *)cmd.uids, buf, n * sizeof(uid_t))) {
+                kfree(buf);
+                return -EFAULT;
+            }
+        }
+        kfree(buf);
+        cmd.count = total;
+        if (copy_to_user(arg, &cmd, sizeof(cmd)))
+            return -EFAULT;
+        break;
+    }
+    default:
+        return -EINVAL;
+    }
+    return ret;
+}
+
 static int do_disable_escape_to_root(void __user *arg)
 {
     set_thread_flag(TIF_KSU_DISABLE_ESCAPE_WITH_ROOT);
@@ -1370,6 +1439,12 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
         .cmd = KSU_IOCTL_SENTINEL_GET_FD,
         .name = "SENTINEL_GET_FD",
         .handler = do_sentinel_get_fd,
+        .perm_check = only_root
+    },
+    {
+        .cmd = KSU_IOCTL_SENTINEL_CLOAK,
+        .name = "SENTINEL_CLOAK",
+        .handler = do_sentinel_cloak,
         .perm_check = only_root
     },
     { 

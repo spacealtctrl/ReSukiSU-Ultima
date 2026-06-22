@@ -129,6 +129,107 @@ void ksu_sentinel_report(uid_t uid, const char *path, __u16 kind)
     ksu_event_queue_push(&sentinel_queue, kind, 0, &ev, sizeof(ev), GFP_ATOMIC);
 }
 
+/* ---- cloak set: uids we hide module mounts from ----
+ * The umount path (kernel_umount.c) consults ksu_sentinel_is_cloaked() so a
+ * cloaked app uid gets modules unmounted on its next spawn, regardless of the
+ * global kernel_umount toggle or its app profile. (su is already hidden from
+ * non-allowed apps by sucompat.) In-memory only for now; resets on reboot.
+ */
+#define SENTINEL_CLOAK_MAX 512
+
+static uid_t cloak_set[SENTINEL_CLOAK_MAX];
+static int cloak_count;
+static DEFINE_SPINLOCK(cloak_lock);
+static bool sentinel_auto_cloak __read_mostly;
+
+bool ksu_sentinel_is_cloaked(uid_t uid)
+{
+    int i;
+    bool res = false;
+    unsigned long flags;
+
+    spin_lock_irqsave(&cloak_lock, flags);
+    for (i = 0; i < cloak_count; i++) {
+        if (cloak_set[i] == uid) {
+            res = true;
+            break;
+        }
+    }
+    spin_unlock_irqrestore(&cloak_lock, flags);
+    return res;
+}
+
+int ksu_sentinel_cloak_add(uid_t uid)
+{
+    int i, ret = 0;
+    unsigned long flags;
+
+    spin_lock_irqsave(&cloak_lock, flags);
+    for (i = 0; i < cloak_count; i++) {
+        if (cloak_set[i] == uid)
+            goto out; /* already cloaked */
+    }
+    if (cloak_count >= SENTINEL_CLOAK_MAX) {
+        ret = -ENOSPC;
+        goto out;
+    }
+    cloak_set[cloak_count++] = uid;
+    pr_info("sentinel: cloaked uid=%u\n", uid);
+out:
+    spin_unlock_irqrestore(&cloak_lock, flags);
+    return ret;
+}
+
+int ksu_sentinel_cloak_remove(uid_t uid)
+{
+    int i;
+    unsigned long flags;
+
+    spin_lock_irqsave(&cloak_lock, flags);
+    for (i = 0; i < cloak_count; i++) {
+        if (cloak_set[i] == uid) {
+            cloak_set[i] = cloak_set[--cloak_count]; /* swap-remove */
+            pr_info("sentinel: uncloaked uid=%u\n", uid);
+            break;
+        }
+    }
+    spin_unlock_irqrestore(&cloak_lock, flags);
+    return 0;
+}
+
+void ksu_sentinel_cloak_clear(void)
+{
+    unsigned long flags;
+
+    spin_lock_irqsave(&cloak_lock, flags);
+    cloak_count = 0;
+    spin_unlock_irqrestore(&cloak_lock, flags);
+}
+
+int ksu_sentinel_cloak_list(uid_t *out, int capacity)
+{
+    int i, total;
+    unsigned long flags;
+
+    spin_lock_irqsave(&cloak_lock, flags);
+    total = cloak_count;
+    for (i = 0; i < cloak_count && i < capacity; i++)
+        out[i] = cloak_set[i];
+    spin_unlock_irqrestore(&cloak_lock, flags);
+    return total;
+}
+
+void ksu_sentinel_set_auto_cloak(bool on)
+{
+    WRITE_ONCE(sentinel_auto_cloak, on);
+    pr_info("sentinel: auto-cloak %d\n", on);
+}
+
+bool ksu_sentinel_get_auto_cloak(void)
+{
+    return READ_ONCE(sentinel_auto_cloak);
+}
+
 /* ---- probe detection via kprobe on do_faccessat ----
  * The inline sucompat hook (fs/open.c) only calls ksu_handle_faccessat for
  * allowlisted uids, so it never sees a non-root app probing for su. This kprobe
@@ -163,8 +264,11 @@ static int sentinel_faccessat_pre(struct kprobe *p, struct pt_regs *regs)
         return 0;
 
     ksu_strncpy_from_user_nofault(path, filename, sizeof(path));
-    if (unlikely(!memcmp(path, SENTINEL_SU_PATH, sizeof(SENTINEL_SU_PATH))))
+    if (unlikely(!memcmp(path, SENTINEL_SU_PATH, sizeof(SENTINEL_SU_PATH)))) {
         ksu_sentinel_report(uid, SENTINEL_SU_PATH, KSU_SENTINEL_KIND_SU);
+        if (READ_ONCE(sentinel_auto_cloak))
+            ksu_sentinel_cloak_add(uid);
+    }
 
     return 0;
 }
@@ -307,6 +411,8 @@ void __init ksu_sentinel_init(void)
     int ret;
 
     ksu_sentinel_enabled = false;
+    sentinel_auto_cloak = false;
+    cloak_count = 0;
     memset(dedup, 0, sizeof(dedup));
 
     ksu_event_queue_init(&sentinel_queue, SENTINEL_MAX_QUEUED, sizeof(struct ksu_sentinel_event));
@@ -325,6 +431,8 @@ void __init ksu_sentinel_init(void)
 void __exit ksu_sentinel_exit(void)
 {
     sentinel_kprobe_disarm();
+    ksu_sentinel_cloak_clear();
+    WRITE_ONCE(sentinel_auto_cloak, false);
     ksu_unregister_feature_handler(KSU_FEATURE_SENTINEL);
 
     mutex_lock(&sentinel_fd_lock);

@@ -490,6 +490,14 @@ enum Sentinel {
     Off,
     /// Stream root-probe events to stdout (blocks)
     Watch,
+    /// Cloak a uid (hide module mounts from it on next spawn)
+    Cloak { uid: u32 },
+    /// Uncloak a uid
+    Uncloak { uid: u32 },
+    /// List currently-cloaked uids
+    Cloaked,
+    /// Auto-cloak any app that probes for root: on|off
+    Auto { state: String },
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -818,6 +826,12 @@ pub fn run() -> Result<()> {
             Sentinel::On => sentinel::enable(),
             Sentinel::Off => sentinel::disable(),
             Sentinel::Watch => sentinel::watch(),
+            Sentinel::Cloak { uid } => sentinel::cloak(uid),
+            Sentinel::Uncloak { uid } => sentinel::uncloak(uid),
+            Sentinel::Cloaked => sentinel::cloaked(),
+            Sentinel::Auto { state } => {
+                sentinel::set_auto(matches!(state.as_str(), "on" | "1" | "true" | "enable"))
+            }
         },
 
         Commands::Debug { command } => match command {
