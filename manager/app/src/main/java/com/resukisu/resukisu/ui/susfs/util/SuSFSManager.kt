@@ -52,6 +52,7 @@ object SuSFSManager {
     private const val KEY_SUS_LOOP_PATHS = "sus_loop_paths"
 
     private const val KEY_SUS_MAPS = "sus_maps"
+    private const val KEY_OPEN_REDIRECTS = "open_redirects"
     private const val KEY_ANDROID_DATA_PATH = "android_data_path"
     private const val KEY_SDCARD_PATH = "sdcard_path"
     private const val KEY_ENABLE_LOG = "enable_log"
@@ -170,7 +171,8 @@ object SuSFSManager {
         val support158: Boolean,
         val enableHideBl: Boolean,
         val enableCleanupResidue: Boolean,
-        val enableAvcLogSpoofing: Boolean
+        val enableAvcLogSpoofing: Boolean,
+        val openRedirects: Set<String>
     ) {
         /**
          * 检查是否有需要自启动的配置
@@ -182,7 +184,8 @@ object SuSFSManager {
                     susLoopPaths.isNotEmpty() ||
                     susMaps.isNotEmpty() ||
                     kstatConfigs.isNotEmpty() ||
-                    addKstatPaths.isNotEmpty()
+                    addKstatPaths.isNotEmpty() ||
+                    openRedirects.isNotEmpty()
         }
     }
 
@@ -279,7 +282,8 @@ object SuSFSManager {
             support158 = isSusVersion158(),
             enableHideBl = getEnableHideBl(context),
             enableCleanupResidue = getEnableCleanupResidue(context),
-            enableAvcLogSpoofing = getEnableAvcLogSpoofing(context)
+            enableAvcLogSpoofing = getEnableAvcLogSpoofing(context),
+            openRedirects = getOpenRedirects(context)
         )
     }
 
@@ -369,6 +373,13 @@ object SuSFSManager {
 
     fun getSusMaps(context: Context): Set<String> =
         getPrefs(context).getStringSet(KEY_SUS_MAPS, emptySet())
+
+    // Open-redirect rules, stored as "originalPath|redirectedPath".
+    fun saveOpenRedirects(context: Context, rules: Set<String>) =
+        getPrefs(context).putStringSet(KEY_OPEN_REDIRECTS, rules)
+
+    fun getOpenRedirects(context: Context): Set<String> =
+        getPrefs(context).getStringSet(KEY_OPEN_REDIRECTS, emptySet())
 
     fun saveKstatConfigs(context: Context, configs: Set<String>) =
         getPrefs(context).putStringSet(KEY_KSTAT_CONFIGS, configs)
@@ -1061,6 +1072,31 @@ object SuSFSManager {
             showToast(context, "Error updating SUS path: ${e.message}")
             false
         }
+    }
+
+    // Open-redirect: make open() of one path return another (susfs add_open_redirect).
+    suspend fun addOpenRedirect(context: Context, original: String, redirected: String): Boolean {
+        val result = executeSusfsCommandWithOutput(
+            context, "add_open_redirect '$original' '$redirected' 2"
+        )
+        if (result.isSuccess) {
+            saveOpenRedirects(context, getOpenRedirects(context) + "$original|$redirected")
+            if (isAutoStartEnabled(context)) updateMagiskModule(context)
+            showToast(context, context.getString(R.string.susfs_open_redirect_added, original))
+        } else {
+            showToast(
+                context,
+                "${context.getString(R.string.susfs_command_failed)}\n${result.output}\n${result.errorOutput}"
+            )
+        }
+        return result.isSuccess
+    }
+
+    suspend fun removeOpenRedirect(context: Context, rule: String): Boolean {
+        saveOpenRedirects(context, getOpenRedirects(context) - rule)
+        if (isAutoStartEnabled(context)) updateMagiskModule(context)
+        showToast(context, context.getString(R.string.susfs_open_redirect_removed))
+        return true
     }
 
     // 循环路径相关方法

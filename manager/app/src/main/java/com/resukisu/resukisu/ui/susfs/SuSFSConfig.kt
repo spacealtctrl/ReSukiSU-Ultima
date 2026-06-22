@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -85,6 +86,7 @@ import com.resukisu.resukisu.ui.susfs.component.EnabledFeaturesContent
 import com.resukisu.resukisu.ui.susfs.component.KstatConfigContent
 import com.resukisu.resukisu.ui.susfs.component.PathSettingsContent
 import com.resukisu.resukisu.ui.susfs.component.SusLoopPathsContent
+import com.resukisu.resukisu.ui.susfs.component.OpenRedirectsContent
 import com.resukisu.resukisu.ui.susfs.component.SusMapsContent
 import com.resukisu.resukisu.ui.susfs.component.SusMountHidingControlCard
 import com.resukisu.resukisu.ui.susfs.component.SusPathsContent
@@ -110,6 +112,7 @@ enum class SuSFSTab(val displayNameRes: Int) {
     SUS_PATHS(R.string.susfs_tab_sus_paths),
     SUS_LOOP_PATHS(R.string.susfs_tab_sus_loop_paths),
     SUS_MAPS(R.string.susfs_tab_sus_maps),
+    OPEN_REDIRECT(R.string.susfs_tab_open_redirect),
     KSTAT_CONFIG(R.string.susfs_tab_kstat_config),
     PATH_SETTINGS(R.string.susfs_tab_path_settings),
     ENABLED_FEATURES(R.string.susfs_tab_enabled_features);
@@ -118,9 +121,9 @@ enum class SuSFSTab(val displayNameRes: Int) {
         fun getAllTabs(isSusVersion158: Boolean, isSusVersion159: Boolean, isSusVersion1512: Boolean): List<SuSFSTab> {
             return when {
                 isSusVersion1512 -> entries.toList()
-                isSusVersion159 -> entries.filter { it != SUS_MAPS}
-                isSusVersion158 -> entries.filter { it != SUS_LOOP_PATHS && it != SUS_MAPS }
-                else -> entries.filter { it != PATH_SETTINGS && it != SUS_LOOP_PATHS && it != SUS_MAPS }
+                isSusVersion159 -> entries.filter { it != SUS_MAPS && it != OPEN_REDIRECT }
+                isSusVersion158 -> entries.filter { it != SUS_LOOP_PATHS && it != SUS_MAPS && it != OPEN_REDIRECT }
+                else -> entries.filter { it != PATH_SETTINGS && it != SUS_LOOP_PATHS && it != SUS_MAPS && it != OPEN_REDIRECT }
             }
         }
     }
@@ -157,6 +160,7 @@ fun SuSFSConfigScreen() {
     var susPaths by remember { mutableStateOf(emptySet<String>()) }
     var susLoopPaths by remember { mutableStateOf(emptySet<String>()) }
     var susMaps by remember { mutableStateOf(emptySet<String>()) }
+    var openRedirects by remember { mutableStateOf(emptySet<String>()) }
     var androidDataPath by remember { mutableStateOf("") }
     var sdcardPath by remember { mutableStateOf("") }
 
@@ -193,6 +197,7 @@ fun SuSFSConfigScreen() {
     var showResetPathsDialog by remember { mutableStateOf(false) }
     var showResetLoopPathsDialog by remember { mutableStateOf(false) }
     var showResetSusMapsDialog by remember { mutableStateOf(false) }
+    var showResetOpenRedirectsDialog by remember { mutableStateOf(false) }
     var showResetKstatDialog by remember { mutableStateOf(false) }
 
     // 备份还原相关状态
@@ -352,6 +357,7 @@ fun SuSFSConfigScreen() {
             susPaths = SuSFSManager.getSusPaths(context)
             susLoopPaths = SuSFSManager.getSusLoopPaths(context)
             susMaps = SuSFSManager.getSusMaps(context)
+            openRedirects = SuSFSManager.getOpenRedirects(context)
             androidDataPath = SuSFSManager.getAndroidDataPath(context)
             sdcardPath = SuSFSManager.getSdcardPath(context)
             kstatConfigs = SuSFSManager.getKstatConfigs(context)
@@ -522,6 +528,7 @@ fun SuSFSConfigScreen() {
                                     susPaths = SuSFSManager.getSusPaths(context)
                                     susLoopPaths = SuSFSManager.getSusLoopPaths(context)
                                     susMaps = SuSFSManager.getSusMaps(context)
+                                    openRedirects = SuSFSManager.getOpenRedirects(context)
                                     androidDataPath = SuSFSManager.getAndroidDataPath(context)
                                     sdcardPath = SuSFSManager.getSdcardPath(context)
                                     kstatConfigs = SuSFSManager.getKstatConfigs(context)
@@ -852,6 +859,27 @@ fun SuSFSConfigScreen() {
     )
 
     ConfirmDialog(
+        showDialog = showResetOpenRedirectsDialog,
+        onDismiss = { showResetOpenRedirectsDialog = false },
+        onConfirm = {
+            coroutineScope.launch {
+                isLoading = true
+                SuSFSManager.saveOpenRedirects(context, emptySet())
+                openRedirects = emptySet()
+                if (SuSFSManager.isAutoStartEnabled(context)) {
+                    SuSFSManager.configureAutoStart(context, true)
+                }
+                isLoading = false
+                showResetOpenRedirectsDialog = false
+            }
+        },
+        titleRes = R.string.susfs_reset_to_default,
+        messageRes = R.string.susfs_reset_open_redirects_message,
+        isLoading = isLoading,
+        isDestructive = true
+    )
+
+    ConfirmDialog(
         showDialog = showResetKstatDialog,
         onDismiss = { showResetKstatDialog = false },
         onConfirm = {
@@ -924,6 +952,7 @@ fun SuSFSConfigScreen() {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .navigationBarsPadding()
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -1043,6 +1072,28 @@ fun SuSFSConfigScreen() {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     stringResource(R.string.susfs_reset_sus_maps_title),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        SuSFSTab.OPEN_REDIRECT -> {
+                            OutlinedButton(
+                                onClick = { showResetOpenRedirectsDialog = true },
+                                enabled = !isLoading && openRedirects.isNotEmpty(),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.RestoreFromTrash,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    stringResource(R.string.susfs_reset_to_default),
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -1299,6 +1350,31 @@ fun SuSFSConfigScreen() {
                             onEditSusMap = { map ->
                                 editingSusMap = map
                                 showAddSusMapDialog = true
+                            }
+                        )
+                    }
+
+                    SuSFSTab.OPEN_REDIRECT -> {
+                        OpenRedirectsContent(
+                            openRedirects = openRedirects,
+                            isLoading = isLoading,
+                            onAddOpenRedirect = { orig, redir ->
+                                coroutineScope.launch {
+                                    isLoading = true
+                                    if (SuSFSManager.addOpenRedirect(context, orig, redir)) {
+                                        openRedirects = SuSFSManager.getOpenRedirects(context)
+                                    }
+                                    isLoading = false
+                                }
+                            },
+                            onRemoveOpenRedirect = { rule ->
+                                coroutineScope.launch {
+                                    isLoading = true
+                                    if (SuSFSManager.removeOpenRedirect(context, rule)) {
+                                        openRedirects = SuSFSManager.getOpenRedirects(context)
+                                    }
+                                    isLoading = false
+                                }
                             }
                         )
                     }

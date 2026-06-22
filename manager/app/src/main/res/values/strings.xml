@@ -653,6 +653,17 @@ Important Note:\n
     <string name="description">Description</string>
     <string name="supported_devices">Supported Devices</string>
     <string name="susfs_tab_sus_maps">SUS Maps</string>
+    <string name="susfs_tab_open_redirect">Open Direct</string>
+    <string name="susfs_open_redirect_desc_title">Open Redirect</string>
+    <string name="susfs_open_redirect_desc_text">Redirect open() of one path to another: when an app opens the original path it transparently receives the redirected file instead.</string>
+    <string name="susfs_open_redirect_section">Open Redirects</string>
+    <string name="susfs_no_open_redirects">No open redirects configured</string>
+    <string name="susfs_add_open_redirect">Add open redirect</string>
+    <string name="susfs_open_redirect_original">Original path</string>
+    <string name="susfs_open_redirect_redirected">Redirected path</string>
+    <string name="susfs_open_redirect_added">Open redirect added: %1$s</string>
+    <string name="susfs_open_redirect_removed">Open redirect removed</string>
+    <string name="susfs_reset_open_redirects_message">This will remove all open-redirect rules. Continue?</string>
     <string name="susfs_sus_map_label">Library Path</string>
     <string name="susfs_sus_map_placeholder">/data/adb/modules/my_module/zygisk/arm64-v8a.so</string>
     <string name="susfs_add_sus_map">Add SUS Map</string>

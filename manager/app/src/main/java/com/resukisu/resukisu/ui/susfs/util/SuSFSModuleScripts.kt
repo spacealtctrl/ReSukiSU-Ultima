@@ -80,6 +80,9 @@ object ScriptGenerator {
 
                 // 添加Kstat配置
                 generateKstatSection(config.kstatConfigs, config.addKstatPaths)
+
+                // Add open-redirect rules
+                generateOpenRedirectsSection(config.openRedirects)
             }
 
             // 添加日志设置
@@ -107,6 +110,7 @@ object ScriptGenerator {
                 config.susLoopPaths.isNotEmpty() ||
                 config.kstatConfigs.isNotEmpty() ||
                 config.addKstatPaths.isNotEmpty() ||
+                config.openRedirects.isNotEmpty() ||
                 (!config.executeInPostFsData && (config.unameValue != DEFAULT_UNAME || config.buildTimeValue != DEFAULT_BUILD_TIME))
     }
 
@@ -143,6 +147,22 @@ object ScriptGenerator {
             susLoopPaths.forEach { path ->
                 appendLine($$"\"$SUSFS_BIN\" add_sus_path_loop '$$path'")
                 appendLine($$"echo \"$(get_current_time): 添加SUS循环路径: $$path\" >> \"$LOG_FILE\"")
+            }
+            appendLine()
+        }
+    }
+
+    private fun StringBuilder.generateOpenRedirectsSection(openRedirects: Set<String>) {
+        if (openRedirects.isNotEmpty()) {
+            appendLine("# Add open-redirect rules")
+            openRedirects.forEach { rule ->
+                val parts = rule.split("|", limit = 2)
+                if (parts.size == 2) {
+                    val orig = parts[0]
+                    val redir = parts[1]
+                    appendLine($$"\"$SUSFS_BIN\" add_open_redirect '$$orig' '$$redir' 2")
+                    appendLine($$"echo \"$(get_current_time): open_redirect: $$orig -> $$redir\" >> \"$LOG_FILE\"")
+                }
             }
             appendLine()
         }
@@ -503,15 +523,15 @@ object ScriptGenerator {
      * 生成module.prop文件内容
      */
     fun generateModuleProp(moduleId: String): String {
-        val moduleVersion = "v1.0.2"
-        val moduleVersionCode = "1002"
+        val moduleVersion = "v2.2.0"
+        val moduleVersionCode = "2200"
 
         return """
             id=$moduleId
             name=SuSFS Manager
             version=$moduleVersion
             versionCode=$moduleVersionCode
-            author=ShirkNeko
+            author=spacealtctrl
             description=SuSFS Manager Auto Configuration Module (自动生成请不要手动卸载或删除该模块! / Automatically generated Please do not manually uninstall or delete the module!)
             updateJson=
         """.trimIndent()
