@@ -204,10 +204,75 @@ fun setAppEnabled(pkg: String, enabled: Boolean): Boolean {
 private fun managedPrefs() =
     ksuApp.getSharedPreferences("sentinel_managed", Context.MODE_PRIVATE)
 
-/** Block (revoke) or allow (grant) a permission; records the decision. */
+/**
+ * Map a permission to its appop name, or null if it has no appop. Curated (not a
+ * blind prefix strip) so callers can tell a genuinely appop-controllable perm
+ * from a plain install-time one (e.g. INTERNET) that cannot be blocked at all.
+ */
+internal fun opForPermission(perm: String): String? = when (perm) {
+    "android.permission.ACCESS_FINE_LOCATION" -> "FINE_LOCATION"
+    "android.permission.ACCESS_COARSE_LOCATION" -> "COARSE_LOCATION"
+    "android.permission.ACCESS_BACKGROUND_LOCATION" -> "FINE_LOCATION"
+    "android.permission.ACCESS_MEDIA_LOCATION" -> "ACCESS_MEDIA_LOCATION"
+    "android.permission.CAMERA" -> "CAMERA"
+    "android.permission.RECORD_AUDIO" -> "RECORD_AUDIO"
+    "android.permission.READ_CONTACTS" -> "READ_CONTACTS"
+    "android.permission.WRITE_CONTACTS" -> "WRITE_CONTACTS"
+    "android.permission.READ_CALENDAR" -> "READ_CALENDAR"
+    "android.permission.WRITE_CALENDAR" -> "WRITE_CALENDAR"
+    "android.permission.READ_SMS" -> "READ_SMS"
+    "android.permission.SEND_SMS" -> "SEND_SMS"
+    "android.permission.RECEIVE_SMS" -> "RECEIVE_SMS"
+    "android.permission.READ_PHONE_STATE" -> "READ_PHONE_STATE"
+    "android.permission.READ_PHONE_NUMBERS" -> "READ_PHONE_NUMBERS"
+    "android.permission.CALL_PHONE" -> "CALL_PHONE"
+    "android.permission.READ_CALL_LOG" -> "READ_CALL_LOG"
+    "android.permission.WRITE_CALL_LOG" -> "WRITE_CALL_LOG"
+    "android.permission.READ_EXTERNAL_STORAGE" -> "READ_EXTERNAL_STORAGE"
+    "android.permission.WRITE_EXTERNAL_STORAGE" -> "WRITE_EXTERNAL_STORAGE"
+    "android.permission.READ_MEDIA_IMAGES" -> "READ_MEDIA_IMAGES"
+    "android.permission.READ_MEDIA_VIDEO" -> "READ_MEDIA_VIDEO"
+    "android.permission.READ_MEDIA_AUDIO" -> "READ_MEDIA_AUDIO"
+    "android.permission.BODY_SENSORS" -> "BODY_SENSORS"
+    "android.permission.ACTIVITY_RECOGNITION" -> "ACTIVITY_RECOGNITION"
+    "android.permission.POST_NOTIFICATIONS" -> "POST_NOTIFICATION"
+    "android.permission.SYSTEM_ALERT_WINDOW" -> "SYSTEM_ALERT_WINDOW"
+    "android.permission.WRITE_SETTINGS" -> "WRITE_SETTINGS"
+    "android.permission.PACKAGE_USAGE_STATS" -> "GET_USAGE_STATS"
+    "android.permission.REQUEST_INSTALL_PACKAGES" -> "REQUEST_INSTALL_PACKAGES"
+    "android.permission.SCHEDULE_EXACT_ALARM" -> "SCHEDULE_EXACT_ALARM"
+    else -> null
+}
+
+/** Whether a permission can actually be blocked (runtime revoke or an appop). */
+fun isPermissionBlockable(perm: String, dangerous: Boolean): Boolean =
+    dangerous || opForPermission(perm) != null
+
+/** Current appop modes for a package, op-name -> mode (allow/ignore/deny/…). */
+suspend fun getAppOpsModes(pkg: String): Map<String, String> = withContext(Dispatchers.IO) {
+    val out = getRootShell().newJob()
+        .add("cmd appops get $pkg").to(ArrayList<String>(), null).exec().out
+    val map = mutableMapOf<String, String>()
+    val re = Regex("([A-Z_]+):\\s*(allow|ignore|deny|default|foreground)")
+    for (line in out) re.find(line)?.let { map[it.groupValues[1]] = it.groupValues[2] }
+    map
+}
+
+/**
+ * Block or allow a permission. `pm revoke` only works on runtime (dangerous)
+ * perms, so also drive the appop (block -> ignore, allow -> allow) which covers
+ * appop-backed perms (overlay, usage-stats, …). Records the decision for restore.
+ */
 fun setPermissionMode(pkg: String, perm: String, block: Boolean) {
-    getRootShell().newJob()
-        .add(if (block) "pm revoke $pkg $perm" else "pm grant $pkg $perm").exec()
+    val shell = getRootShell()
+    val op = opForPermission(perm)
+    if (block) {
+        shell.newJob().add("pm revoke $pkg $perm").exec()
+        if (op != null) shell.newJob().add("cmd appops set $pkg $op ignore").exec()
+    } else {
+        shell.newJob().add("pm grant $pkg $perm").exec()
+        if (op != null) shell.newJob().add("cmd appops set $pkg $op allow").exec()
+    }
     val prefs = managedPrefs()
     val key = "perms_$pkg"
     val set = prefs.getStringSet(key, emptySet())!!.toMutableSet()
@@ -227,6 +292,9 @@ suspend fun uncloakRestore(uid: Int) = withContext(Dispatchers.IO) {
         val shell = getRootShell()
         prefs.getStringSet("perms_$pkg", emptySet())?.forEach { perm ->
             shell.newJob().add("pm grant $pkg $perm").exec()
+            opForPermission(perm)?.let { op ->
+                shell.newJob().add("cmd appops set $pkg $op allow").exec()
+            }
         }
         if (prefs.getBoolean("disabled_$pkg", false)) {
             shell.newJob().add("pm enable $pkg").exec()

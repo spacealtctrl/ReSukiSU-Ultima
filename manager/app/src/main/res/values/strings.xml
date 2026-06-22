@@ -654,8 +654,8 @@ Important Note:\n
     <string name="supported_devices">Supported Devices</string>
     <string name="susfs_tab_sus_maps">SUS Maps</string>
     <string name="susfs_tab_open_redirect">Open Direct</string>
-    <string name="susfs_open_redirect_desc_title">Open Redirect</string>
-    <string name="susfs_open_redirect_desc_text">Redirect open() of one path to another: when an app opens the original path it transparently receives the redirected file instead.</string>
+    <string name="susfs_open_redirect_desc_title">Serve apps a replacement file when they open a path</string>
+    <string name="susfs_open_redirect_desc_text">When an app opens the Original path, the kernel quietly returns your Redirected file instead. The real file is never modified, and your root/su processes still see the original — only normal apps are affected.\n\nTo add a rule, enter:\n• Original path — the file the app reads (e.g. /system/etc/hosts, or a config it inspects for tampering)\n• Redirected path — your replacement file, placed somewhere readable such as /data/adb/susfs4ksu/\n\nBoth files must already exist before the rule is added. Rules apply immediately and are re-added automatically on every boot, so you set them once. Tip: point a file an app checks to a clean copy so it sees an unmodified version.</string>
     <string name="susfs_open_redirect_section">Open Redirects</string>
     <string name="susfs_no_open_redirects">No open redirects configured</string>
     <string name="susfs_add_open_redirect">Add open redirect</string>

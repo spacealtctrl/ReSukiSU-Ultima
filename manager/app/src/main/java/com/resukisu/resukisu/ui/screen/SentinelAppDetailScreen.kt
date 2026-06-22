@@ -45,8 +45,11 @@ import com.resukisu.resukisu.ui.component.settings.AppBackButton
 import com.resukisu.resukisu.ui.navigation.LocalNavigator
 import com.resukisu.resukisu.ui.navigation.Route
 import com.resukisu.resukisu.ui.util.forceStopApp
+import com.resukisu.resukisu.ui.util.getAppOpsModes
 import com.resukisu.resukisu.ui.util.getSentinelCloaked
 import com.resukisu.resukisu.ui.util.getSentinelHistory
+import com.resukisu.resukisu.ui.util.isPermissionBlockable
+import com.resukisu.resukisu.ui.util.opForPermission
 import com.resukisu.resukisu.ui.util.sentinelCloak
 import com.resukisu.resukisu.ui.util.setAppEnabled
 import com.resukisu.resukisu.ui.util.setPermissionMode
@@ -60,6 +63,7 @@ private data class PermRow(
     val name: String,
     val dangerous: Boolean,
     val granted: Boolean,
+    val blockable: Boolean,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,14 +99,25 @@ fun SentinelAppDetailScreen(uid: Int) {
                 val pi = pm.getPackageInfo(pkg, PackageManager.GET_PERMISSIONS)
                 val req = pi.requestedPermissions ?: emptyArray()
                 val flags = pi.requestedPermissionsFlags ?: IntArray(req.size)
+                val ops = getAppOpsModes(pkg)
                 perms = req.mapIndexed { i, perm ->
                     val dangerous = runCatching {
                         (pm.getPermissionInfo(perm, 0).protectionLevel and
                             PermissionInfo.PROTECTION_DANGEROUS) != 0
                     }.getOrDefault(false)
-                    val granted = (flags.getOrElse(i) { 0 } and
+                    val pmGranted = (flags.getOrElse(i) { 0 } and
                         PackageInfo.REQUESTED_PERMISSION_GRANTED) != 0
-                    PermRow(perm, perm.substringAfterLast('.'), dangerous, granted)
+                    // Treat an appop set to ignore/deny as blocked too, so the
+                    // state reflects blocks applied to non-runtime perms.
+                    val opMode = opForPermission(perm)?.let { ops[it] }
+                    val granted = pmGranted && opMode != "ignore" && opMode != "deny"
+                    PermRow(
+                        perm,
+                        perm.substringAfterLast('.'),
+                        dangerous,
+                        granted,
+                        isPermissionBlockable(perm, dangerous),
+                    )
                 }.sortedWith(compareByDescending<PermRow> { it.dangerous }.thenBy { it.name })
             }
         }
@@ -258,13 +273,25 @@ private fun PermRow(p: PermRow, onMode: (Boolean) -> Unit) {
                 else MaterialTheme.colorScheme.onSurface,
             )
         },
-        supportingContent = { Text(if (p.granted) "granted" else "denied") },
+        supportingContent = {
+            Text(
+                when {
+                    !p.granted -> "denied"
+                    p.blockable -> "granted"
+                    else -> "granted · can't be blocked"
+                }
+            )
+        },
         trailingContent = {
             Box {
                 OutlinedButton(onClick = { menu = true }) { Text("Manage") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("Allow") }, onClick = { menu = false; onMode(false) })
-                    DropdownMenuItem(text = { Text("Block") }, onClick = { menu = false; onMode(true) })
+                    DropdownMenuItem(
+                        text = { Text("Block") },
+                        enabled = p.blockable,
+                        onClick = { menu = false; onMode(true) },
+                    )
                 }
             }
         },
