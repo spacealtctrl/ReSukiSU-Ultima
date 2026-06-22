@@ -7,10 +7,12 @@
 # Adapted from ReZygisk's post-fs-data.sh (GPL-3.0, The PerformanC Organization).
 #
 ZDIR=/data/adb/ksu/zygisk
+LOG="$ZDIR/boot.log"
+echo "--- $(date) launch.sh start ---" >> "$LOG" 2>/dev/null
 
 # Off-switch / safety: only run if the engine is present and enabled.
-[ -f "$ZDIR/enable" ] || exit 0
-[ -d "$ZDIR/bin" ] || exit 0
+[ -f "$ZDIR/enable" ] || { echo "no enable flag, skip" >> "$LOG" 2>/dev/null; exit 0; }
+[ -d "$ZDIR/bin" ] || { echo "no bin dir, skip" >> "$LOG" 2>/dev/null; exit 0; }
 
 cd "$ZDIR" || exit 1
 
@@ -30,8 +32,17 @@ else
 fi
 
 case "$CPU_ABIS" in
-  *arm64-v8a*|*x86_64*) [ -x ./bin/zygisk-ptrace64 ] && ./bin/zygisk-ptrace64 monitor & ;;
-  *)                    [ -x ./bin/zygisk-ptrace32 ] && ./bin/zygisk-ptrace32 monitor & ;;
+  *arm64-v8a*|*x86_64*) BIN=./bin/zygisk-ptrace64 ;;
+  *)                    BIN=./bin/zygisk-ptrace32 ;;
 esac
+
+# Fully detach so the monitor survives after ksud's script runner returns.
+if [ -x "$BIN" ]; then
+  echo "$(date) launching $BIN monitor (setsid)" >> "$LOG" 2>/dev/null
+  setsid "$BIN" monitor >> "$LOG" 2>&1 &
+  echo "$(date) launched (pid $!)" >> "$LOG" 2>/dev/null
+else
+  echo "$(date) ERROR: $BIN not executable" >> "$LOG" 2>/dev/null
+fi
 
 exit 0

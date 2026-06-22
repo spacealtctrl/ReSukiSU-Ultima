@@ -31,7 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.automirrored.rounded.Article
 import androidx.compose.material.icons.filled.Adb
 import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Fence
@@ -302,7 +302,7 @@ fun SettingsPage(bottomPadding: Dp) {
                             item {
                                 // Built-in Zygisk (Zygisk-Ultima) — off by default
                                 SettingsSwitchWidget(
-                                    icon = Icons.Filled.Extension,
+                                    icon = Icons.Filled.Android,
                                     title = stringResource(R.string.settings_zygisk),
                                     description = stringResource(R.string.settings_zygisk_summary),
                                     enabled = !zygiskBusy,

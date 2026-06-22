@@ -225,7 +225,7 @@
     <string name="settings_sulog">SU Log</string>
     <string name="settings_sulog_summary">Record root-related events into KernelSU sulog files.</string>
     <string name="settings_zygisk">Zygisk</string>
-    <string name="settings_zygisk_summary">Built-in Zygisk (Zygisk-Ultima) — zygote injection for Zygisk modules. Reboot to apply.</string>
+    <string name="settings_zygisk_summary">Built-in Zygisk — zygote injection for Zygisk modules. Reboot to apply.</string>
     <string name="settings_zygisk_reboot_toast">Saved — reboot to apply Zygisk changes</string>
     <string name="settings_zygisk_failed_toast">Zygisk operation failed</string>
     <string name="feature_status_managed_summary">This feature is managed by a module</string>
