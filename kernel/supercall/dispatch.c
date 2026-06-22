@@ -950,6 +950,47 @@ static int do_sentinel_cloak(void __user *arg)
     return ret;
 }
 
+static int do_sentinel_history(void __user *arg)
+{
+    struct ksu_sentinel_history_cmd cmd;
+    struct ksu_sentinel_hist_entry *buf;
+    int total;
+    u32 cap;
+
+    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
+        pr_err("sentinel_history: copy_from_user failed\n");
+        return -EFAULT;
+    }
+
+    cap = cmd.count;
+    if (cap > 1024)
+        cap = 1024; /* sanity bound */
+    if (cap == 0) {
+        cmd.count = ksu_sentinel_history_dump(NULL, 0);
+        if (copy_to_user(arg, &cmd, sizeof(cmd)))
+            return -EFAULT;
+        return 0;
+    }
+
+    buf = kmalloc_array(cap, sizeof(*buf), GFP_KERNEL);
+    if (!buf)
+        return -ENOMEM;
+    total = ksu_sentinel_history_dump(buf, cap);
+    if (cmd.entries) {
+        u32 n = ((u32)total < cap) ? (u32)total : cap;
+
+        if (copy_to_user((void __user *)cmd.entries, buf, n * sizeof(*buf))) {
+            kfree(buf);
+            return -EFAULT;
+        }
+    }
+    kfree(buf);
+    cmd.count = total;
+    if (copy_to_user(arg, &cmd, sizeof(cmd)))
+        return -EFAULT;
+    return 0;
+}
+
 static int do_disable_escape_to_root(void __user *arg)
 {
     set_thread_flag(TIF_KSU_DISABLE_ESCAPE_WITH_ROOT);
@@ -1445,6 +1486,12 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
         .cmd = KSU_IOCTL_SENTINEL_CLOAK,
         .name = "SENTINEL_CLOAK",
         .handler = do_sentinel_cloak,
+        .perm_check = only_root
+    },
+    {
+        .cmd = KSU_IOCTL_SENTINEL_HISTORY,
+        .name = "SENTINEL_HISTORY",
+        .handler = do_sentinel_history,
         .perm_check = only_root
     },
     { 

@@ -24,6 +24,7 @@
 #include "policy/allowlist.h"
 #include "compat/kernel_compat.h"
 #include "uapi/sentinel.h"
+#include "uapi/supercall.h"
 
 #define SENTINEL_MAX_QUEUED 256
 #define SENTINEL_DEDUP_SLOTS 32
@@ -109,6 +110,8 @@ void ksu_sentinel_report(uid_t uid, const char *path, __u16 kind)
 
     if (!READ_ONCE(ksu_sentinel_enabled))
         return;
+
+    ksu_sentinel_history_record(uid, kind);
 
     count = sentinel_dedup_bump(uid, kind);
     if (!count)
@@ -230,46 +233,175 @@ bool ksu_sentinel_get_auto_cloak(void)
     return READ_ONCE(sentinel_auto_cloak);
 }
 
-/* ---- probe detection via kprobe on do_faccessat ----
- * The inline sucompat hook (fs/open.c) only calls ksu_handle_faccessat for
- * allowlisted uids, so it never sees a non-root app probing for su. This kprobe
- * fires for every access()/faccessat()/faccessat2() (all route through
- * do_faccessat) regardless of uid, catching the probers the inline hook skips.
- * Armed only while Sentinel is enabled, so there is zero overhead when off.
- */
-#define SENTINEL_SU_PATH "/system/bin/su"
+/* ---- watch-list of root / identity artifacts ---- */
+struct sentinel_watch {
+    const char *path;
+    bool prefix; /* prefix match vs exact */
+    __u16 kind;
+};
 
+static const struct sentinel_watch watch_list[] = {
+    { "/system/bin/su", false, KSU_SENTINEL_KIND_SU },
+    { "/system/xbin/su", false, KSU_SENTINEL_KIND_SU },
+    { "/sbin/su", false, KSU_SENTINEL_KIND_SU },
+    { "/su/bin/su", false, KSU_SENTINEL_KIND_SU },
+    { "/system/bin/magisk", true, KSU_SENTINEL_KIND_MAGISK },
+    { "/sbin/.magisk", true, KSU_SENTINEL_KIND_MAGISK },
+    { "/data/adb/magisk", true, KSU_SENTINEL_KIND_MAGISK },
+    { "/data/adb/ksu", true, KSU_SENTINEL_KIND_KSU },
+    { "/data/adb/modules", true, KSU_SENTINEL_KIND_MODULES },
+    { "/data/system/packages.list", false, KSU_SENTINEL_KIND_PKGLIST },
+    { "/data/system/packages.xml", false, KSU_SENTINEL_KIND_PKGLIST },
+    { "/system/xbin/busybox", false, KSU_SENTINEL_KIND_BUSYBOX },
+    { "/system/bin/busybox", false, KSU_SENTINEL_KIND_BUSYBOX },
+    { NULL, false, 0 }, /* terminator */
+};
+
+static __u16 sentinel_match(const char *path)
+{
+    int i;
+
+    for (i = 0; watch_list[i].path; i++) {
+        const struct sentinel_watch *w = &watch_list[i];
+
+        if (w->prefix) {
+            if (!strncmp(path, w->path, strlen(w->path)))
+                return w->kind;
+        } else if (!strcmp(path, w->path)) {
+            return w->kind;
+        }
+    }
+    return 0;
+}
+
+/* ---- persistent per-uid probe history (resets on reboot) ---- */
+#define SENTINEL_HIST_MAX 256
+
+struct sentinel_hist {
+    bool used;
+    uid_t uid;
+    __u32 count;
+    __u32 kinds; /* bitmap: bit (kind-1) per enum ksu_sentinel_kind */
+    u64 last_ns;
+};
+static struct sentinel_hist hist[SENTINEL_HIST_MAX];
+static DEFINE_SPINLOCK(hist_lock);
+
+void ksu_sentinel_history_record(uid_t uid, __u16 kind)
+{
+    int i, free_slot = -1, oldest = 0;
+    unsigned long flags;
+
+    if (kind == 0 || kind > KSU_SENTINEL_KIND_MAX)
+        return;
+
+    spin_lock_irqsave(&hist_lock, flags);
+    for (i = 0; i < SENTINEL_HIST_MAX; i++) {
+        if (hist[i].used && hist[i].uid == uid) {
+            hist[i].count++;
+            hist[i].kinds |= (1u << (kind - 1));
+            hist[i].last_ns = ktime_get_boottime_ns();
+            goto out;
+        }
+        if (!hist[i].used && free_slot < 0)
+            free_slot = i;
+        if (hist[i].used && hist[oldest].used && hist[i].last_ns < hist[oldest].last_ns)
+            oldest = i;
+    }
+    if (free_slot < 0)
+        free_slot = oldest; /* evict the least-recent */
+    hist[free_slot].used = true;
+    hist[free_slot].uid = uid;
+    hist[free_slot].count = 1;
+    hist[free_slot].kinds = (1u << (kind - 1));
+    hist[free_slot].last_ns = ktime_get_boottime_ns();
+out:
+    spin_unlock_irqrestore(&hist_lock, flags);
+}
+
+int ksu_sentinel_history_dump(struct ksu_sentinel_hist_entry *out, int capacity)
+{
+    int i, n = 0;
+    unsigned long flags;
+
+    spin_lock_irqsave(&hist_lock, flags);
+    for (i = 0; i < SENTINEL_HIST_MAX; i++) {
+        if (!hist[i].used)
+            continue;
+        if (n < capacity) {
+            out[n].uid = hist[i].uid;
+            out[n].count = hist[i].count;
+            out[n].kinds = hist[i].kinds;
+            out[n].pad = 0;
+            out[n].last_ns = hist[i].last_ns;
+        }
+        n++;
+    }
+    spin_unlock_irqrestore(&hist_lock, flags);
+    return n;
+}
+
+void ksu_sentinel_history_clear(void)
+{
+    unsigned long flags;
+
+    spin_lock_irqsave(&hist_lock, flags);
+    memset(hist, 0, sizeof(hist));
+    spin_unlock_irqrestore(&hist_lock, flags);
+}
+
+/* ---- probe detection via kprobes ----
+ * The inline sucompat hook (fs/open.c) only calls ksu_handle_faccessat for
+ * allowlisted uids, so it never sees a non-root app probing. We kprobe the
+ * faccessat and openat entry points (covering access/faccessat/faccessat2 and
+ * open/openat/openat2) and match the path against the watch-list above.
+ * Armed only while Sentinel is enabled.
+ */
 #ifdef CONFIG_KPROBES
 static DEFINE_MUTEX(sentinel_kp_lock);
-static bool sentinel_kp_registered;
+static bool kp_faccessat_ok;
+static bool kp_openat_ok;
 
-static int sentinel_faccessat_pre(struct kprobe *p, struct pt_regs *regs)
+static void sentinel_check_path(const char __user *filename)
 {
-    const char __user *filename;
-    char path[sizeof(SENTINEL_SU_PATH) + 1] = { 0 };
+    char path[64] = { 0 };
     uid_t uid;
+    __u16 kind;
 
     if (!READ_ONCE(ksu_sentinel_enabled))
-        return 0;
+        return;
 
     uid = current_uid().val;
     if (uid == 0)
-        return 0; /* root is not a prober */
+        return; /* root is not a prober */
     if (ksu_is_allow_uid_for_current(uid))
-        return 0; /* granted apps go through the sucompat redirect, not a probe */
+        return; /* granted apps go through the sucompat redirect */
 
-    /* do_faccessat(int dfd, const char __user *filename, int mode, int flags) */
-    filename = (const char __user *)regs_get_kernel_argument(regs, 1);
     if (!filename)
-        return 0;
-
+        return;
     ksu_strncpy_from_user_nofault(path, filename, sizeof(path));
-    if (unlikely(!memcmp(path, SENTINEL_SU_PATH, sizeof(SENTINEL_SU_PATH)))) {
-        ksu_sentinel_report(uid, SENTINEL_SU_PATH, KSU_SENTINEL_KIND_SU);
-        if (READ_ONCE(sentinel_auto_cloak))
-            ksu_sentinel_cloak_add(uid);
-    }
+    path[sizeof(path) - 1] = '\0';
 
+    kind = sentinel_match(path);
+    if (!kind)
+        return;
+
+    ksu_sentinel_report(uid, path, kind);
+    if (READ_ONCE(sentinel_auto_cloak))
+        ksu_sentinel_cloak_add(uid);
+}
+
+/* do_faccessat(int dfd, const char __user *filename, ...) -> arg index 1 */
+static int sentinel_faccessat_pre(struct kprobe *p, struct pt_regs *regs)
+{
+    sentinel_check_path((const char __user *)regs_get_kernel_argument(regs, 1));
+    return 0;
+}
+
+/* do_sys_openat2(int dfd, const char __user *filename, ...) -> arg index 1 */
+static int sentinel_openat_pre(struct kprobe *p, struct pt_regs *regs)
+{
+    sentinel_check_path((const char __user *)regs_get_kernel_argument(regs, 1));
     return 0;
 }
 
@@ -278,31 +410,42 @@ static struct kprobe sentinel_faccessat_kp = {
     .pre_handler = sentinel_faccessat_pre,
 };
 
+static struct kprobe sentinel_openat_kp = {
+    .symbol_name = "do_sys_openat2",
+    .pre_handler = sentinel_openat_pre,
+};
+
 static void sentinel_kprobe_arm(void)
 {
-    int ret;
-
     mutex_lock(&sentinel_kp_lock);
-    if (!sentinel_kp_registered) {
-        ret = register_kprobe(&sentinel_faccessat_kp);
-        if (ret) {
-            pr_err("sentinel: register_kprobe(do_faccessat) failed: %d\n", ret);
-        } else {
-            sentinel_kp_registered = true;
-            pr_info("sentinel: kprobe armed on do_faccessat\n");
-        }
+    if (!kp_faccessat_ok) {
+        if (register_kprobe(&sentinel_faccessat_kp))
+            pr_err("sentinel: register_kprobe(do_faccessat) failed\n");
+        else
+            kp_faccessat_ok = true;
     }
+    if (!kp_openat_ok) {
+        if (register_kprobe(&sentinel_openat_kp))
+            pr_err("sentinel: register_kprobe(do_sys_openat2) failed\n");
+        else
+            kp_openat_ok = true;
+    }
+    pr_info("sentinel: kprobes armed (faccessat=%d openat=%d)\n", kp_faccessat_ok, kp_openat_ok);
     mutex_unlock(&sentinel_kp_lock);
 }
 
 static void sentinel_kprobe_disarm(void)
 {
     mutex_lock(&sentinel_kp_lock);
-    if (sentinel_kp_registered) {
+    if (kp_faccessat_ok) {
         unregister_kprobe(&sentinel_faccessat_kp);
-        sentinel_kp_registered = false;
-        pr_info("sentinel: kprobe disarmed\n");
+        kp_faccessat_ok = false;
     }
+    if (kp_openat_ok) {
+        unregister_kprobe(&sentinel_openat_kp);
+        kp_openat_ok = false;
+    }
+    pr_info("sentinel: kprobes disarmed\n");
     mutex_unlock(&sentinel_kp_lock);
 }
 #else

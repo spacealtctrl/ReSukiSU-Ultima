@@ -6,10 +6,16 @@
 #define KSU_SENTINEL_EVENT_VERSION 1
 #define KSU_SENTINEL_PATH_LEN 128
 
-/* What kind of root artifact the app probed for. */
+/* What kind of root/identity artifact the app probed for. */
 enum ksu_sentinel_kind {
-    KSU_SENTINEL_KIND_SU = 1, /* access()/stat() on the su path */
+    KSU_SENTINEL_KIND_SU = 1, /* su binary path */
+    KSU_SENTINEL_KIND_MAGISK = 2, /* magisk paths */
+    KSU_SENTINEL_KIND_KSU = 3, /* KernelSU paths (/data/adb/ksu, ...) */
+    KSU_SENTINEL_KIND_MODULES = 4, /* /data/adb/modules */
+    KSU_SENTINEL_KIND_PKGLIST = 5, /* app-list enumeration (packages.list) */
+    KSU_SENTINEL_KIND_BUSYBOX = 6, /* busybox / toybox-su */
 };
+#define KSU_SENTINEL_KIND_MAX 6
 
 /*
  * One probe event, delivered as the payload of a ksu_event_record over the

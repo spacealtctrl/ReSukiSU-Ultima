@@ -235,6 +235,37 @@ pub fn sentinel_cloak_list() -> std::io::Result<Vec<u32>> {
     Ok(buf)
 }
 
+/// Fetch the persistent per-uid probe history.
+pub fn sentinel_history() -> std::io::Result<Vec<uapi::ksu_sentinel_hist_entry>> {
+    let mut q = uapi::ksu_sentinel_history_cmd {
+        count: 0,
+        pad: 0,
+        entries: 0,
+    };
+    ksuctl(uapi::KSU_IOCTL_SENTINEL_HISTORY_RUST, &raw mut q)?;
+    let total = q.count as usize;
+    if total == 0 {
+        return Ok(Vec::new());
+    }
+    let zero = uapi::ksu_sentinel_hist_entry {
+        uid: 0,
+        count: 0,
+        kinds: 0,
+        pad: 0,
+        last_ns: 0,
+    };
+    let mut buf = vec![zero; total];
+    let mut cmd = uapi::ksu_sentinel_history_cmd {
+        count: total as u32,
+        pad: 0,
+        entries: buf.as_mut_ptr() as u64,
+    };
+    ksuctl(uapi::KSU_IOCTL_SENTINEL_HISTORY_RUST, &raw mut cmd)?;
+    let n = (cmd.count as usize).min(total);
+    buf.truncate(n);
+    Ok(buf)
+}
+
 /// Get mark status for a process (pid=0 returns total marked count)
 pub fn mark_get(pid: i32) -> std::io::Result<u32> {
     let mut cmd = uapi::ksu_manage_mark_cmd {

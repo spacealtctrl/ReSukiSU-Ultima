@@ -168,6 +168,21 @@ struct ksu_sentinel_cloak_cmd {
     __aligned_u64 uids; /* LIST: user ptr to __u32[count] */
 };
 
+/* Persistent per-uid probe history (survives until reboot). */
+struct ksu_sentinel_hist_entry {
+    __u32 uid;
+    __u32 count; /* total probes by this uid */
+    __u32 kinds; /* bitmap: bit (kind-1) set per enum ksu_sentinel_kind */
+    __u32 pad;
+    __aligned_u64 last_ns;
+};
+
+struct ksu_sentinel_history_cmd {
+    __u32 count; /* in: capacity of entries[]; out: total available */
+    __u32 pad;
+    __aligned_u64 entries; /* user ptr to struct ksu_sentinel_hist_entry[count] */
+};
+
 struct ksu_manage_try_umount_cmd {
     __aligned_u64 arg; /* char ptr, this is the mountpoint */
     __u32 flags; /* this is the flag we use for it */
@@ -273,6 +288,7 @@ DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_GET_SULOG_FD, _IOW('K', 20, struct ksu_ge
 DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_DISABLE_ESCAPE_TO_ROOT, _IO('K', 21))
 DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_SENTINEL_GET_FD, _IOW('K', 22, struct ksu_get_sentinel_fd_cmd))
 DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_SENTINEL_CLOAK, _IOC(_IOC_READ | _IOC_WRITE, 'K', 23, 0))
+DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_SENTINEL_HISTORY, _IOC(_IOC_READ | _IOC_WRITE, 'K', 24, 0))
 
 // Downstream add IOCTL command definitions
 DEFINE_KSU_UAPI_CONST(__u32, KSU_IOCTL_GET_FULL_VERSION, _IOC(_IOC_READ, 'K', 100, 0))

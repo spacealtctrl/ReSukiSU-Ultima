@@ -170,6 +170,24 @@ suspend fun drainSentinelProbes(): List<SentinelProbe> = withContext(Dispatchers
     probes
 }
 
+/** A probing app from the kernel's persistent history (survives until reboot). */
+data class SentinelHistEntry(val uid: Int, val count: Int, val kinds: Int, val lastNs: Long)
+
+suspend fun getSentinelHistory(): List<SentinelHistEntry> = withContext(Dispatchers.IO) {
+    val out = getRootShell().newJob()
+        .add("${getKsuDaemonPath()} sentinel history").to(ArrayList<String>(), null).exec().out
+        .joinToString("")
+    val list = mutableListOf<SentinelHistEntry>()
+    runCatching {
+        val arr = JSONArray(out.trim().ifEmpty { "[]" })
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            list.add(SentinelHistEntry(o.optInt("uid"), o.optInt("count"), o.optInt("kinds"), o.optLong("last_ns")))
+        }
+    }
+    list
+}
+
 fun install() {
     val start = SystemClock.elapsedRealtime()
     val libadbroot = File(ksuApp.applicationInfo.nativeLibraryDir, "libadbroot.so").absolutePath

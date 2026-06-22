@@ -249,3 +249,30 @@ pub fn status() -> Result<()> {
     println!("{{\"enabled\":{enabled},\"auto\":{auto}}}");
     Ok(())
 }
+
+#[derive(serde::Serialize)]
+struct HistEntry {
+    uid: u32,
+    count: u32,
+    kinds: u32,
+    last_ns: u64,
+}
+
+/// Print the persistent per-uid probe history (survives until reboot) as JSON.
+pub fn history() -> Result<()> {
+    let entries = ksucalls::sentinel_history().context("failed to read sentinel history")?;
+    let list: Vec<HistEntry> = entries
+        .iter()
+        .map(|e| HistEntry {
+            uid: e.uid,
+            count: e.count,
+            kinds: e.kinds,
+            last_ns: e.last_ns,
+        })
+        .collect();
+    println!(
+        "{}",
+        serde_json::to_string(&list).unwrap_or_else(|_| "[]".to_string())
+    );
+    Ok(())
+}

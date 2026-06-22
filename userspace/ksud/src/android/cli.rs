@@ -494,6 +494,8 @@ enum Sentinel {
     Drain,
     /// Print sentinel state as JSON: {"enabled":bool,"auto":bool}
     Status,
+    /// Print persistent per-uid probe history as JSON (survives until reboot)
+    History,
     /// Cloak a uid (hide module mounts from it on next spawn)
     Cloak { uid: u32 },
     /// Uncloak a uid
@@ -832,6 +834,7 @@ pub fn run() -> Result<()> {
             Sentinel::Watch => sentinel::watch(),
             Sentinel::Drain => sentinel::drain(),
             Sentinel::Status => sentinel::status(),
+            Sentinel::History => sentinel::history(),
             Sentinel::Cloak { uid } => sentinel::cloak(uid),
             Sentinel::Uncloak { uid } => sentinel::uncloak(uid),
             Sentinel::Cloaked => sentinel::cloaked(),

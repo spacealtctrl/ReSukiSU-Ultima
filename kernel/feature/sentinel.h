@@ -4,8 +4,15 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 
+struct ksu_sentinel_hist_entry; /* uapi/supercall.h */
+
 #ifdef CONFIG_KSU_SENTINEL
 bool ksu_sentinel_is_enabled(void);
+
+/* Persistent per-uid probe history (resets on reboot). */
+void ksu_sentinel_history_record(uid_t uid, __u16 kind);
+int ksu_sentinel_history_dump(struct ksu_sentinel_hist_entry *out, int capacity);
+void ksu_sentinel_history_clear(void);
 void ksu_sentinel_report(uid_t uid, const char *path, __u16 kind);
 int ksu_install_sentinel_fd(void);
 void ksu_sentinel_init(void);
@@ -25,6 +32,16 @@ bool ksu_sentinel_get_auto_cloak(void);
 static inline bool ksu_sentinel_is_enabled(void)
 {
     return false;
+}
+static inline void ksu_sentinel_history_record(uid_t uid, __u16 kind)
+{
+}
+static inline int ksu_sentinel_history_dump(struct ksu_sentinel_hist_entry *out, int capacity)
+{
+    return 0;
+}
+static inline void ksu_sentinel_history_clear(void)
+{
 }
 static inline void ksu_sentinel_report(uid_t uid, const char *path, __u16 kind)
 {

@@ -35,9 +35,9 @@ import androidx.compose.ui.unit.dp
 import com.resukisu.resukisu.R
 import com.resukisu.resukisu.ui.component.settings.AppBackButton
 import com.resukisu.resukisu.ui.navigation.LocalNavigator
-import com.resukisu.resukisu.ui.util.SentinelProbe
-import com.resukisu.resukisu.ui.util.drainSentinelProbes
+import com.resukisu.resukisu.ui.util.SentinelHistEntry
 import com.resukisu.resukisu.ui.util.getSentinelCloaked
+import com.resukisu.resukisu.ui.util.getSentinelHistory
 import com.resukisu.resukisu.ui.util.getSentinelStatus
 import com.resukisu.resukisu.ui.util.sentinelCloak
 import com.resukisu.resukisu.ui.util.sentinelUncloak
@@ -58,7 +58,7 @@ fun SentinelScreen() {
 
     var enabled by remember { mutableStateOf(false) }
     var auto by remember { mutableStateOf(false) }
-    var probes by remember { mutableStateOf<List<SentinelProbe>>(emptyList()) }
+    var probes by remember { mutableStateOf<List<SentinelHistEntry>>(emptyList()) }
     var cloaked by remember { mutableStateOf<List<Int>>(emptyList()) }
 
     fun label(uid: Int): String {
@@ -80,19 +80,11 @@ fun SentinelScreen() {
         enabled = en
         auto = au
         cloaked = getSentinelCloaked()
+        // Recent probes come from the kernel's persistent history (survives until
+        // reboot), so they're not lost when the screen or app is closed.
         while (true) {
-            if (enabled) {
-                val fresh = drainSentinelProbes()
-                if (fresh.isNotEmpty()) {
-                    val merged = probes.associateBy { it.uid }.toMutableMap()
-                    for (p in fresh) {
-                        val prev = merged[p.uid]
-                        merged[p.uid] = if (prev != null) prev.copy(count = prev.count + p.count) else p
-                    }
-                    probes = merged.values.sortedByDescending { it.count }
-                }
-                cloaked = getSentinelCloaked()
-            }
+            probes = getSentinelHistory().sortedByDescending { it.count }
+            cloaked = getSentinelCloaked()
             delay(3000)
         }
     }
@@ -146,7 +138,7 @@ fun SentinelScreen() {
                     ListItem(
                         headlineContent = { Text(label(p.uid)) },
                         supportingContent = {
-                            Text(stringResource(R.string.sentinel_probed_su, p.count))
+                            Text("${kindsLabel(p.kinds)}  ·  ×${p.count}")
                         },
                         trailingContent = {
                             if (isCloaked) {
@@ -189,6 +181,19 @@ fun SentinelScreen() {
             }
         }
     }
+}
+
+/* Decode the probe-kinds bitmap (bit n = enum kind n+1) into a readable list. */
+private fun kindsLabel(kinds: Int): String {
+    val names = buildList {
+        if (kinds and 0x01 != 0) add("su")
+        if (kinds and 0x02 != 0) add("magisk")
+        if (kinds and 0x04 != 0) add("ksu")
+        if (kinds and 0x08 != 0) add("modules")
+        if (kinds and 0x10 != 0) add("app list")
+        if (kinds and 0x20 != 0) add("busybox")
+    }
+    return names.joinToString(", ").ifEmpty { "root" }
 }
 
 @Composable
