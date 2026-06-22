@@ -37,23 +37,29 @@ struct SentinelEvent {
 }
 
 pub fn enable() -> Result<()> {
-    feature::set_feature("sentinel", 1)
+    feature::set_feature("sentinel", 1)?;
+    save_config();
+    Ok(())
 }
 
 pub fn disable() -> Result<()> {
-    feature::set_feature("sentinel", 0)
+    feature::set_feature("sentinel", 0)?;
+    save_config();
+    Ok(())
 }
 
 /* cloak ops mirror enum ksu_sentinel_cloak_op: 0=add 1=remove 5=set_auto */
 pub fn cloak(uid: u32) -> Result<()> {
     ksucalls::sentinel_cloak_op(0, uid, 0).context("cloak failed")?;
     println!("sentinel: cloaked uid {uid}");
+    save_config();
     Ok(())
 }
 
 pub fn uncloak(uid: u32) -> Result<()> {
     ksucalls::sentinel_cloak_op(1, uid, 0).context("uncloak failed")?;
     println!("sentinel: uncloaked uid {uid}");
+    save_config();
     Ok(())
 }
 
@@ -63,17 +69,67 @@ pub fn cloaked() -> Result<()> {
         println!("sentinel: no cloaked uids");
     } else {
         println!("sentinel: cloaked uids:");
-        for uid in list {
+        for uid in &list {
             println!("  {uid}");
         }
     }
+    // persist the live set (captures auto-cloaks too) whenever it's read
+    save_config();
     Ok(())
 }
 
 pub fn set_auto(on: bool) -> Result<()> {
     ksucalls::sentinel_cloak_op(5, 0, u32::from(on)).context("failed to set auto-cloak")?;
     println!("sentinel: auto-cloak {}", if on { "on" } else { "off" });
+    save_config();
     Ok(())
+}
+
+const SENTINEL_CONF: &str = "/data/adb/ksu/sentinel.json";
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct SentinelConf {
+    enabled: bool,
+    auto: bool,
+    cloaked: Vec<u32>,
+}
+
+/// Snapshot current kernel state to disk so it survives reboot.
+fn save_config() {
+    let enabled = ksucalls::get_feature(5)
+        .map(|(v, _)| v != 0)
+        .unwrap_or(false);
+    let auto = ksucalls::sentinel_cloak_op(6, 0, 0)
+        .map(|v| v != 0)
+        .unwrap_or(false);
+    let cloaked = ksucalls::sentinel_cloak_list().unwrap_or_default();
+    let conf = SentinelConf {
+        enabled,
+        auto,
+        cloaked,
+    };
+    if let Ok(json) = serde_json::to_string(&conf) {
+        let _ = std::fs::write(SENTINEL_CONF, json);
+    }
+}
+
+/// Re-apply saved Sentinel state at boot (the kernel state resets on reboot).
+pub fn restore_config() {
+    let data = match std::fs::read_to_string(SENTINEL_CONF) {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+    let conf: SentinelConf = match serde_json::from_str(&data) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let _ = ksucalls::sentinel_cloak_op(5, 0, u32::from(conf.auto));
+    for uid in conf.cloaked {
+        let _ = ksucalls::sentinel_cloak_op(0, uid, 0);
+    }
+    if conf.enabled {
+        let _ = feature::set_feature("sentinel", 1);
+    }
 }
 
 /// Stream root-probe events from the kernel to stdout (blocks until the fd

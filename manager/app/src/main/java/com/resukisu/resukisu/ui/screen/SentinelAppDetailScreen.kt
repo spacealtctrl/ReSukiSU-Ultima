@@ -42,14 +42,12 @@ import androidx.compose.ui.unit.dp
 import com.resukisu.resukisu.ui.component.settings.AppBackButton
 import com.resukisu.resukisu.ui.navigation.LocalNavigator
 import com.resukisu.resukisu.ui.util.forceStopApp
-import com.resukisu.resukisu.ui.util.getAppOpsModes
 import com.resukisu.resukisu.ui.util.getSentinelCloaked
 import com.resukisu.resukisu.ui.util.getSentinelHistory
-import com.resukisu.resukisu.ui.util.opForPermission
 import com.resukisu.resukisu.ui.util.sentinelCloak
-import com.resukisu.resukisu.ui.util.sentinelUncloak
 import com.resukisu.resukisu.ui.util.setAppEnabled
 import com.resukisu.resukisu.ui.util.setPermissionMode
+import com.resukisu.resukisu.ui.util.uncloakRestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,7 +57,6 @@ private data class PermRow(
     val name: String,
     val dangerous: Boolean,
     val granted: Boolean,
-    val spoofed: Boolean,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,7 +92,6 @@ fun SentinelAppDetailScreen(uid: Int) {
                 val pi = pm.getPackageInfo(pkg, PackageManager.GET_PERMISSIONS)
                 val req = pi.requestedPermissions ?: emptyArray()
                 val flags = pi.requestedPermissionsFlags ?: IntArray(req.size)
-                val ops = getAppOpsModes(pkg)
                 perms = req.mapIndexed { i, perm ->
                     val dangerous = runCatching {
                         (pm.getPermissionInfo(perm, 0).protectionLevel and
@@ -103,10 +99,17 @@ fun SentinelAppDetailScreen(uid: Int) {
                     }.getOrDefault(false)
                     val granted = (flags.getOrElse(i) { 0 } and
                         PackageInfo.REQUESTED_PERMISSION_GRANTED) != 0
-                    val op = opForPermission(perm)
-                    val spoofed = granted && op != null && ops[op] == "ignore"
-                    PermRow(perm, perm.substringAfterLast('.'), dangerous, granted, spoofed)
+                    PermRow(perm, perm.substringAfterLast('.'), dangerous, granted)
                 }.sortedWith(compareByDescending<PermRow> { it.dangerous }.thenBy { it.name })
+            }
+        }
+    }
+
+    fun applyMode(p: PermRow, block: Boolean) {
+        if (pkg != null) {
+            scope.launch {
+                withContext(Dispatchers.IO) { setPermissionMode(pkg, p.perm, block) }
+                refresh()
             }
         }
     }
@@ -155,14 +158,7 @@ fun SentinelAppDetailScreen(uid: Int) {
                 })
             }
             items(dangerousPerms, key = { it.perm }) { p ->
-                DangerousPermRow(p) { mode ->
-                    if (pkg != null) {
-                        scope.launch {
-                            withContext(Dispatchers.IO) { setPermissionMode(pkg, p.perm, mode) }
-                            refresh()
-                        }
-                    }
-                }
+                PermRow(p) { block -> applyMode(p, block) }
             }
             if (otherPerms.isNotEmpty()) {
                 item {
@@ -174,7 +170,9 @@ fun SentinelAppDetailScreen(uid: Int) {
                     }
                 }
                 if (showAll) {
-                    items(otherPerms, key = { it.perm }) { p -> InfoPermRow(p) }
+                    items(otherPerms, key = { it.perm }) { p ->
+                        PermRow(p) { block -> applyMode(p, block) }
+                    }
                 }
             }
 
@@ -183,12 +181,12 @@ fun SentinelAppDetailScreen(uid: Int) {
                 ListItem(
                     leadingContent = { Icon(Icons.Filled.VisibilityOff, contentDescription = null) },
                     headlineContent = { Text("Cloak (hide root from this app)") },
+                    supportingContent = { Text("Uncloaking restores its permissions to default") },
                     trailingContent = {
                         Switch(checked = isCloaked, onCheckedChange = { on ->
                             scope.launch {
-                                withContext(Dispatchers.IO) {
-                                    if (on) sentinelCloak(uid) else sentinelUncloak(uid)
-                                }
+                                if (on) withContext(Dispatchers.IO) { sentinelCloak(uid) }
+                                else uncloakRestore(uid)
                                 refresh()
                             }
                         })
@@ -232,36 +230,26 @@ fun SentinelAppDetailScreen(uid: Int) {
     }
 }
 
-private fun permState(p: PermRow): String =
-    when {
-        p.spoofed -> "spoofed"
-        p.granted -> "granted"
-        else -> "denied"
-    }
-
 @Composable
-private fun DangerousPermRow(p: PermRow, onMode: (String) -> Unit) {
+private fun PermRow(p: PermRow, onMode: (Boolean) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     ListItem(
-        headlineContent = { Text(p.name, color = MaterialTheme.colorScheme.error) },
-        supportingContent = { Text(permState(p)) },
+        headlineContent = {
+            Text(
+                p.name,
+                color = if (p.dangerous) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurface,
+            )
+        },
+        supportingContent = { Text(if (p.granted) "granted" else "denied") },
         trailingContent = {
             Box {
                 OutlinedButton(onClick = { menu = true }) { Text("Manage") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Allow") }, onClick = { menu = false; onMode("allow") })
-                    DropdownMenuItem(text = { Text("Block") }, onClick = { menu = false; onMode("block") })
-                    DropdownMenuItem(text = { Text("Spoof") }, onClick = { menu = false; onMode("spoof") })
+                    DropdownMenuItem(text = { Text("Allow") }, onClick = { menu = false; onMode(false) })
+                    DropdownMenuItem(text = { Text("Block") }, onClick = { menu = false; onMode(true) })
                 }
             }
         },
-    )
-}
-
-@Composable
-private fun InfoPermRow(p: PermRow) {
-    ListItem(
-        headlineContent = { Text(p.name) },
-        supportingContent = { Text(if (p.granted) "granted" else "denied") },
     )
 }

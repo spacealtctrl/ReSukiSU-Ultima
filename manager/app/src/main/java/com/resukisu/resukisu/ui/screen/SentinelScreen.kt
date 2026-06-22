@@ -42,7 +42,7 @@ import com.resukisu.resukisu.ui.util.getSentinelCloaked
 import com.resukisu.resukisu.ui.util.getSentinelHistory
 import com.resukisu.resukisu.ui.util.getSentinelStatus
 import com.resukisu.resukisu.ui.util.sentinelCloak
-import com.resukisu.resukisu.ui.util.sentinelUncloak
+import com.resukisu.resukisu.ui.util.uncloakRestore
 import com.resukisu.resukisu.ui.util.setSentinel
 import com.resukisu.resukisu.ui.util.setSentinelAuto
 import kotlinx.coroutines.Dispatchers
@@ -137,8 +137,8 @@ fun SentinelScreen() {
             } else {
                 items(probes) { p ->
                     val isCloaked = cloaked.contains(p.uid)
+                    // Recent probes are not tappable; cloak one first to manage it.
                     ListItem(
-                        modifier = Modifier.clickable { navigator.push(Route.SentinelApp(p.uid)) },
                         headlineContent = { Text(label(p.uid)) },
                         supportingContent = {
                             Text("${kindsLabel(p.kinds)}  ·  ×${p.count}")
@@ -175,7 +175,7 @@ fun SentinelScreen() {
                         trailingContent = {
                             OutlinedButton(onClick = {
                                 scope.launch {
-                                    withContext(Dispatchers.IO) { sentinelUncloak(uid) }
+                                    uncloakRestore(uid)
                                     cloaked = getSentinelCloaked()
                                 }
                             }) { Text(stringResource(R.string.sentinel_uncloak)) }

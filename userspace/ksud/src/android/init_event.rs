@@ -193,6 +193,9 @@ pub fn on_boot_completed() {
     ksucalls::report_boot_complete();
     info!("on_boot_completed triggered!");
 
+    // Re-apply persisted Sentinel state (enabled / auto-cloak / cloak-set).
+    crate::android::sentinel::restore_config();
+
     run_stage("boot-completed", false);
 }
 
