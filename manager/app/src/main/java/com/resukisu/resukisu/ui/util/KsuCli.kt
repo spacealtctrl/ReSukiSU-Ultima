@@ -240,11 +240,26 @@ suspend fun clearSentinelHistory(): Boolean = withContext(Dispatchers.IO) {
     ShellUtils.fastCmdResult(getRootShell(), "${getKsuDaemonPath()} sentinel clear")
 }
 
-/** Dump the most recent logcat lines for a uid (the Spy log source). */
-suspend fun dumpAppLog(uid: Int, lines: Int = 400): List<String> = withContext(Dispatchers.IO) {
-    getRootShell().newJob()
-        .add("logcat -d --uid=$uid -v threadtime -t $lines")
-        .to(ArrayList<String>(), null).exec().out
+/**
+ * Spy log source. Apps log little under their own uid, and the interesting
+ * activity lands elsewhere: Play Integrity in GMS, store calls in vending, and
+ * hardware key attestation in the keystore/KeyMint HAL (system). So merge the
+ * target app + GMS + Play Store (by uid) with the keystore/KeyMint HAL (by tag),
+ * time-sorted into one stream.
+ */
+suspend fun dumpAppLog(uid: Int, lines: Int = 300): List<String> = withContext(Dispatchers.IO) {
+    val pm = ksuApp.packageManager
+    fun uidOf(pkg: String) = runCatching { pm.getPackageUid(pkg, 0) }.getOrNull()
+    // NOTE: this logcat rejects comma uid-lists, so run one --uid per uid. And -t
+    // is applied BEFORE the tag filter, so the keystore tag stream uses no -t
+    // (it's sparse anyway) to guarantee attestation logs are never dropped.
+    val perUid = listOfNotNull(uid, uidOf("com.google.android.gms"), uidOf("com.android.vending"))
+        .distinct()
+        .joinToString("; ") { "logcat -d --uid=$it -v threadtime -t $lines" }
+    val ksTags = "keystore2 KeyMintDevice KeyMasterHalDevice KeymasterUtils " +
+        "Keymaster credstore DroidGuard"
+    val cmd = "{ $perUid; logcat -d -s $ksTags -v threadtime; } | sort -k1,2 -s | uniq"
+    getRootShell().newJob().add(cmd).to(ArrayList<String>(), null).exec().out
 }
 
 fun install() {

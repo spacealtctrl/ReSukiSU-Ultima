@@ -40,6 +40,7 @@ import kotlinx.coroutines.delay
 private val SPY_KEYWORDS = listOf(
     "attest", "integrity", "safetynet", "play protect", "playprotect",
     "vending", "play store", "playstore", "denied", "rejected", "license",
+    "keymaster", "keymint", "keystore", "droidguard", "abort_operation",
 )
 
 private fun logColor(line: String): Color {
