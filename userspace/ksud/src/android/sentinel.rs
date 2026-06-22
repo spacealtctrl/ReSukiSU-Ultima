@@ -142,3 +142,110 @@ pub fn watch() -> Result<()> {
         }
     }
 }
+
+#[derive(serde::Serialize)]
+struct Probe {
+    uid: u32,
+    pid: u32,
+    count: u32,
+    kind: u32,
+    path: String,
+}
+
+/// Non-blocking drain of queued probe events; prints them as a JSON array and
+/// returns. The manager polls this for the Shield feed.
+pub fn drain() -> Result<()> {
+    let raw = ksucalls::get_sentinel_fd()
+        .context("failed to open sentinel fd (enable it first: ksud sentinel on)")?;
+    // SAFETY: get_sentinel_fd returns a freshly installed, owned fd.
+    let fd = unsafe { OwnedFd::from_raw_fd(raw) };
+
+    // Make the read non-blocking so we return after draining what's queued.
+    unsafe {
+        let flags = libc::fcntl(fd.as_raw_fd(), libc::F_GETFL);
+        if flags >= 0 {
+            libc::fcntl(fd.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK);
+        }
+    }
+
+    let mut probes: Vec<Probe> = Vec::new();
+    let mut buf = [0u8; READ_BUF_SIZE];
+    loop {
+        let n = unsafe {
+            libc::read(
+                fd.as_raw_fd(),
+                buf.as_mut_ptr().cast::<libc::c_void>(),
+                buf.len(),
+            )
+        };
+        if n < 0 {
+            let err = io::Error::last_os_error();
+            if err.raw_os_error() == Some(libc::EINTR) {
+                continue;
+            }
+            if matches!(err.kind(), io::ErrorKind::WouldBlock)
+                || err.raw_os_error() == Some(libc::EAGAIN)
+            {
+                break;
+            }
+            return Err(err).context("read sentinel fd");
+        }
+        if n == 0 {
+            break;
+        }
+
+        let n = n as usize;
+        let mut off = 0usize;
+        while off + size_of::<EventRecordHeader>() <= n {
+            let hdr: EventRecordHeader =
+                unsafe { std::ptr::read_unaligned(buf[off..].as_ptr().cast()) };
+            let payload_len = hdr.payload_len as usize;
+            let frame = size_of::<EventRecordHeader>() + payload_len;
+            if off + frame > n {
+                break;
+            }
+            let record_type = hdr.record_type;
+            let payload = &buf[off + size_of::<EventRecordHeader>()..off + frame];
+
+            if record_type != KSU_EVENT_QUEUE_TYPE_DROPPED
+                && payload_len >= size_of::<SentinelEvent>()
+            {
+                let ev: SentinelEvent =
+                    unsafe { std::ptr::read_unaligned(payload.as_ptr().cast()) };
+                let path_arr = ev.path;
+                let end = path_arr
+                    .iter()
+                    .position(|&b| b == 0)
+                    .unwrap_or(path_arr.len());
+                probes.push(Probe {
+                    uid: ev.uid,
+                    pid: ev.pid,
+                    count: ev.count,
+                    kind: u32::from(ev.kind),
+                    path: String::from_utf8_lossy(&path_arr[..end]).into_owned(),
+                });
+            }
+            off += frame;
+        }
+    }
+
+    println!(
+        "{}",
+        serde_json::to_string(&probes).unwrap_or_else(|_| "[]".to_string())
+    );
+    Ok(())
+}
+
+/// Print "{"enabled":bool,"auto":bool}" for the manager to read current state.
+pub fn status() -> Result<()> {
+    // feature id 5 = KSU_FEATURE_SENTINEL
+    let enabled = ksucalls::get_feature(5)
+        .map(|(v, _)| v != 0)
+        .unwrap_or(false);
+    // cloak op 6 = GET_AUTO
+    let auto = ksucalls::sentinel_cloak_op(6, 0, 0)
+        .map(|v| v != 0)
+        .unwrap_or(false);
+    println!("{{\"enabled\":{enabled},\"auto\":{auto}}}");
+    Ok(())
+}

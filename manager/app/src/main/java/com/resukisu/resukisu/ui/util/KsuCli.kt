@@ -128,6 +128,48 @@ suspend fun getFeaturePersistValue(feature: String): Long? = withContext(Dispatc
     val valueLine = out.firstOrNull { it.trim().startsWith("Value:") } ?: return@withContext null
     valueLine.substringAfter("Value:").trim().toLongOrNull()
 }
+
+// ---- Sentinel (root-probe detector) ----
+
+data class SentinelProbe(val uid: Int, val count: Int, val path: String)
+
+fun setSentinel(enable: Boolean): Boolean = execKsud("sentinel " + if (enable) "on" else "off")
+
+fun setSentinelAuto(enable: Boolean): Boolean = execKsud("sentinel auto " + if (enable) "on" else "off")
+
+fun sentinelCloak(uid: Int): Boolean = execKsud("sentinel cloak $uid")
+
+fun sentinelUncloak(uid: Int): Boolean = execKsud("sentinel uncloak $uid")
+
+/** Returns (enabled, autoCloak). */
+suspend fun getSentinelStatus(): Pair<Boolean, Boolean> = withContext(Dispatchers.IO) {
+    val out = getRootShell().newJob()
+        .add("${getKsuDaemonPath()} sentinel status").to(ArrayList<String>(), null).exec().out
+        .joinToString("")
+    Pair(out.contains("\"enabled\":true"), out.contains("\"auto\":true"))
+}
+
+suspend fun getSentinelCloaked(): List<Int> = withContext(Dispatchers.IO) {
+    getRootShell().newJob()
+        .add("${getKsuDaemonPath()} sentinel cloaked").to(ArrayList<String>(), null).exec().out
+        .mapNotNull { it.trim().toIntOrNull() }
+}
+
+suspend fun drainSentinelProbes(): List<SentinelProbe> = withContext(Dispatchers.IO) {
+    val out = getRootShell().newJob()
+        .add("${getKsuDaemonPath()} sentinel drain").to(ArrayList<String>(), null).exec().out
+        .joinToString("")
+    val probes = mutableListOf<SentinelProbe>()
+    runCatching {
+        val arr = JSONArray(out.trim().ifEmpty { "[]" })
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            probes.add(SentinelProbe(o.optInt("uid"), o.optInt("count"), o.optString("path")))
+        }
+    }
+    probes
+}
+
 fun install() {
     val start = SystemClock.elapsedRealtime()
     val libadbroot = File(ksuApp.applicationInfo.nativeLibraryDir, "libadbroot.so").absolutePath

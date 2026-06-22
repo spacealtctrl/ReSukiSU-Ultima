@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.LocalPolice
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Storage
@@ -55,6 +56,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
@@ -85,6 +87,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.pm.PackageInfoCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -455,9 +458,22 @@ private fun TopBar(
                     IconButton(onClick = {
                         navigator.push(Route.SuSFSConfig)
                     }) {
+                        Text(
+                            text = "ඞ",
+                            fontSize = 22.sp,
+                            color = LocalContentColor.current
+                        )
+                    }
+                }
+
+                // Sentinel (root-probe detector)
+                KsuIsValid {
+                    IconButton(onClick = {
+                        navigator.push(Route.Sentinel)
+                    }) {
                         Icon(
-                            imageVector = Icons.Filled.Tune,
-                            contentDescription = stringResource(R.string.susfs_config_setting_title)
+                            imageVector = Icons.Filled.Shield,
+                            contentDescription = stringResource(R.string.sentinel_title)
                         )
                     }
                 }

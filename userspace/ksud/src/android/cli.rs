@@ -490,6 +490,10 @@ enum Sentinel {
     Off,
     /// Stream root-probe events to stdout (blocks)
     Watch,
+    /// Drain queued probe events as JSON and exit (for the manager to poll)
+    Drain,
+    /// Print sentinel state as JSON: {"enabled":bool,"auto":bool}
+    Status,
     /// Cloak a uid (hide module mounts from it on next spawn)
     Cloak { uid: u32 },
     /// Uncloak a uid
@@ -826,6 +830,8 @@ pub fn run() -> Result<()> {
             Sentinel::On => sentinel::enable(),
             Sentinel::Off => sentinel::disable(),
             Sentinel::Watch => sentinel::watch(),
+            Sentinel::Drain => sentinel::drain(),
+            Sentinel::Status => sentinel::status(),
             Sentinel::Cloak { uid } => sentinel::cloak(uid),
             Sentinel::Uncloak { uid } => sentinel::uncloak(uid),
             Sentinel::Cloaked => sentinel::cloaked(),

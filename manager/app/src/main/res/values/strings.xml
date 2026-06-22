@@ -731,4 +731,17 @@ Important Note:\n
     <string name="notification_permission_denied">Download failed: Notification permission is required</string>
     <string name="storage_permission_description">Need External Storage permission to write file.</string>
     <string name="storage_permission_denied">Download failed: External Storage permission is required</string>
+    <string name="sentinel_title">Sentinel</string>
+    <string name="sentinel_summary">Detect apps probing for root</string>
+    <string name="sentinel_enable">Enable Sentinel</string>
+    <string name="sentinel_auto">Auto-cloak probers</string>
+    <string name="sentinel_auto_summary">Automatically hide root from any app that probes</string>
+    <string name="sentinel_recent_probes">Recent probes</string>
+    <string name="sentinel_cloaked_apps">Cloaked apps</string>
+    <string name="sentinel_no_probes">No probes detected yet</string>
+    <string name="sentinel_no_cloaked">No cloaked apps</string>
+    <string name="sentinel_cloak">Cloak</string>
+    <string name="sentinel_uncloak">Uncloak</string>
+    <string name="sentinel_cloaked_label">Cloaked</string>
+    <string name="sentinel_probed_su">Probed for su ×%1$d</string>
 </resources>
