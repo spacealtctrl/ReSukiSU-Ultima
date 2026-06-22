@@ -64,4 +64,16 @@ chmod -R 0755 bin
 [ -f "machikado.$M64" ] && chmod 0755 "machikado.$M64"
 [ -f "machikado.$M32" ] && chmod 0755 "machikado.$M32"
 
+# The engine reads/writes its own module.prop here (prepare_environment + status).
+cat > module.prop <<EOF
+id=zygisk_ultima
+name=Zygisk-Ultima
+version=$VER
+versionCode=1
+author=spacealtctrl
+description=Built-in Zygisk for ReSuki Ultima (based on ReZygisk)
+EOF
+cp -f module.prop module.prop.bak
+chmod 0644 module.prop module.prop.bak
+
 exit 0
