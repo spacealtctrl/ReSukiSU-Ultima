@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.automirrored.rounded.Article
 import androidx.compose.material.icons.filled.Adb
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Fence
@@ -107,7 +108,10 @@ import com.resukisu.resukisu.ui.theme.ThemeConfig
 import com.resukisu.resukisu.ui.theme.blurEffect
 import com.resukisu.resukisu.ui.theme.blurSource
 import com.resukisu.resukisu.ui.util.LocalSnackbarHost
+import com.resukisu.resukisu.ui.util.disableZygisk
+import com.resukisu.resukisu.ui.util.enableZygisk
 import com.resukisu.resukisu.ui.util.getBugreportFile
+import com.resukisu.resukisu.ui.util.isZygiskEnabled
 import com.resukisu.resukisu.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -155,6 +159,9 @@ fun SettingsPage(bottomPadding: Dp) {
         val logSaved = stringResource(R.string.log_saved)
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
+        var zygiskEnabled by remember { mutableStateOf(false) }
+        var zygiskBusy by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { zygiskEnabled = isZygiskEnabled() }
         val exportBugreportLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.CreateDocument("application/gzip")
         ) { uri: Uri? ->
@@ -292,6 +299,33 @@ fun SettingsPage(bottomPadding: Dp) {
                                 )
                             }
 
+                            item {
+                                // Built-in Zygisk (Zygisk-Ultima) — off by default
+                                SettingsSwitchWidget(
+                                    icon = Icons.Filled.Extension,
+                                    title = stringResource(R.string.settings_zygisk),
+                                    description = stringResource(R.string.settings_zygisk_summary),
+                                    enabled = !zygiskBusy,
+                                    checked = zygiskEnabled,
+                                    onCheckedChange = { on ->
+                                        zygiskBusy = true
+                                        zygiskEnabled = on
+                                        scope.launch {
+                                            val ok = if (on) enableZygisk() else disableZygisk()
+                                            zygiskBusy = false
+                                            if (!ok) zygiskEnabled = !on
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(
+                                                    if (ok) R.string.settings_zygisk_reboot_toast
+                                                    else R.string.settings_zygisk_failed_toast
+                                                ),
+                                                Toast.LENGTH_LONG,
+                                            ).show()
+                                        }
+                                    },
+                                )
+                            }
 
                             item {
                                 val selinuxHideSummary = when (uiState.selinuxHideStatus) {

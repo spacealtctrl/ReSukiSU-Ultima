@@ -330,6 +330,62 @@ suspend fun dumpAppLog(uid: Int, lines: Int = 300): List<String> = withContext(D
     getRootShell().newJob().add(cmd).to(ArrayList<String>(), null).exec().out
 }
 
+// ---- Built-in Zygisk (Zygisk-Ultima). Off by default; deployed under ksud, not
+// a module. The launch script in post-fs-data.d is the on/off + kill switch. ----
+
+private const val ZYGISK_DIR = "/data/adb/ksu/zygisk"
+private const val ZYGISK_LAUNCH_DST = "/data/adb/post-fs-data.d/zygisk-ultima.sh"
+
+private fun copyAssetToCache(name: String): File {
+    val out = File(ksuApp.cacheDir, name.substringAfterLast('/'))
+    ksuApp.assets.open(name).use { input -> out.outputStream().use { input.copyTo(it) } }
+    return out
+}
+
+/** Enabled = engine deployed + launch hook installed. */
+suspend fun isZygiskEnabled(): Boolean = withContext(Dispatchers.IO) {
+    ShellUtils.fastCmdResult(getRootShell(), "[ -f $ZYGISK_DIR/enable ] && [ -f $ZYGISK_LAUNCH_DST ]")
+}
+
+/** Whether the injection monitor is currently alive. */
+suspend fun isZygiskRunning(): Boolean = withContext(Dispatchers.IO) {
+    ShellUtils.fastCmdResult(getRootShell(), "pgrep -f zygisk-ptrace >/dev/null 2>&1")
+}
+
+/** Deploy the universal payload, apply sepolicy, install the boot hook. Needs a reboot to take effect. */
+suspend fun enableZygisk(): Boolean = withContext(Dispatchers.IO) {
+    val payload = copyAssetToCache("zygisk/payload.zip")
+    val setup = copyAssetToCache("zygisk/setup.sh")
+    val launch = copyAssetToCache("zygisk/launch.sh")
+    val shell = getRootShell()
+    val script = """
+        set -e
+        rm -rf $ZYGISK_DIR
+        mkdir -p $ZYGISK_DIR/payload /data/adb/post-fs-data.d
+        cp '${payload.absolutePath}' $ZYGISK_DIR/payload.zip
+        cp '${setup.absolutePath}' $ZYGISK_DIR/setup.sh
+        cp '${launch.absolutePath}' $ZYGISK_DIR/launch.sh
+        cd $ZYGISK_DIR/payload && unzip -o $ZYGISK_DIR/payload.zip >/dev/null
+        cd $ZYGISK_DIR && sh setup.sh $ZYGISK_DIR
+        ${getKsuDaemonPath()} sepolicy apply $ZYGISK_DIR/payload/sepolicy.rule || true
+        touch $ZYGISK_DIR/enable
+        cp $ZYGISK_DIR/launch.sh $ZYGISK_LAUNCH_DST
+        chmod 0755 $ZYGISK_LAUNCH_DST
+    """.trimIndent()
+    val ok = shell.newJob().add(script).exec().isSuccess
+    payload.delete(); setup.delete(); launch.delete()
+    ok
+}
+
+/** Remove the boot hook + stop the engine (kill switch). Leaves nothing running. */
+suspend fun disableZygisk(): Boolean = withContext(Dispatchers.IO) {
+    ShellUtils.fastCmdResult(
+        getRootShell(),
+        "rm -f $ZYGISK_DIR/enable $ZYGISK_LAUNCH_DST; " +
+            "pkill -f zygisk-ptrace 2>/dev/null; pkill -f zygiskd 2>/dev/null; true"
+    )
+}
+
 fun install() {
     val start = SystemClock.elapsedRealtime()
     val libadbroot = File(ksuApp.applicationInfo.nativeLibraryDir, "libadbroot.so").absolutePath
