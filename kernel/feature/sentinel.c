@@ -387,7 +387,13 @@ static void sentinel_check_path(const char __user *filename)
         return;
 
     ksu_sentinel_report(uid, path, kind);
-    if (READ_ONCE(sentinel_auto_cloak))
+    /*
+     * Auto-cloak real apps only. System/native uids (appid < AID_APP_START)
+     * legitimately touch su paths via the framework and must not have their
+     * module mounts stripped. Manual cloak is unaffected (this guards only the
+     * auto path). The modulo handles secondary-user uids (user*100000 + appid).
+     */
+    if (READ_ONCE(sentinel_auto_cloak) && (uid % 100000) >= 10000)
         ksu_sentinel_cloak_add(uid);
 }
 
