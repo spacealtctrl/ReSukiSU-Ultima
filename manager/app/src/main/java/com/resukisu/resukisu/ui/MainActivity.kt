@@ -100,6 +100,7 @@ import com.resukisu.resukisu.ui.screen.FlashScreen
 import com.resukisu.resukisu.ui.screen.InstallScreen
 import com.resukisu.resukisu.ui.screen.SulogScreen
 import com.resukisu.resukisu.ui.screen.TemplateEditorScreen
+import com.resukisu.resukisu.ui.screen.SentinelAppDetailScreen
 import com.resukisu.resukisu.ui.screen.SentinelScreen
 import com.resukisu.resukisu.ui.screen.UmountManagerScreen
 import com.resukisu.resukisu.ui.screen.about.AboutScreen
@@ -580,6 +581,7 @@ class MainActivity : ComponentActivity() {
                                     entry<Route.SuSFSConfig> { SuSFSConfigScreen() }
                                     entry<Route.UmountManager> { UmountManagerScreen() }
                                     entry<Route.Sentinel> { SentinelScreen() }
+                                    entry<Route.SentinelApp> { key -> SentinelAppDetailScreen(key.uid) }
                                     entry<Route.KernelFlash> { key ->
                                         KernelFlashScreen(
                                             key.kernelUri,

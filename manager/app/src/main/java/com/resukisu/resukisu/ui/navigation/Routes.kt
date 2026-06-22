@@ -101,6 +101,10 @@ sealed interface Route : NavKey, Parcelable {
 
     @Parcelize
     @Serializable
+    data class SentinelApp(val uid: Int) : Route
+
+    @Parcelize
+    @Serializable
     data class KernelFlash(
         val kernelUri: @Contextual Uri,
         val selectedSlot: String?,

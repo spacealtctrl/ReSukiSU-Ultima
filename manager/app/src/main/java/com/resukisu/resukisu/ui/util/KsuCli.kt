@@ -188,6 +188,16 @@ suspend fun getSentinelHistory(): List<SentinelHistEntry> = withContext(Dispatch
     list
 }
 
+fun forceStopApp(pkg: String): Boolean =
+    ShellUtils.fastCmdResult(getRootShell(), "am force-stop $pkg")
+
+/** Disable (freeze) or re-enable an app for the primary user. */
+fun setAppEnabled(pkg: String, enabled: Boolean): Boolean =
+    ShellUtils.fastCmdResult(
+        getRootShell(),
+        if (enabled) "pm enable $pkg" else "pm disable-user --user 0 $pkg"
+    )
+
 fun install() {
     val start = SystemClock.elapsedRealtime()
     val libadbroot = File(ksuApp.applicationInfo.nativeLibraryDir, "libadbroot.so").absolutePath

@@ -1,5 +1,6 @@
 package com.resukisu.resukisu.ui.screen
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.resukisu.resukisu.R
 import com.resukisu.resukisu.ui.component.settings.AppBackButton
 import com.resukisu.resukisu.ui.navigation.LocalNavigator
+import com.resukisu.resukisu.ui.navigation.Route
 import com.resukisu.resukisu.ui.util.SentinelHistEntry
 import com.resukisu.resukisu.ui.util.getSentinelCloaked
 import com.resukisu.resukisu.ui.util.getSentinelHistory
@@ -136,6 +138,7 @@ fun SentinelScreen() {
                 items(probes) { p ->
                     val isCloaked = cloaked.contains(p.uid)
                     ListItem(
+                        modifier = Modifier.clickable { navigator.push(Route.SentinelApp(p.uid)) },
                         headlineContent = { Text(label(p.uid)) },
                         supportingContent = {
                             Text("${kindsLabel(p.kinds)}  ·  ×${p.count}")
@@ -165,6 +168,7 @@ fun SentinelScreen() {
             } else {
                 items(cloaked) { uid ->
                     ListItem(
+                        modifier = Modifier.clickable { navigator.push(Route.SentinelApp(uid)) },
                         leadingContent = { Icon(Icons.Filled.VisibilityOff, contentDescription = null) },
                         headlineContent = { Text(label(uid)) },
                         supportingContent = { Text("uid $uid") },
@@ -184,7 +188,7 @@ fun SentinelScreen() {
 }
 
 /* Decode the probe-kinds bitmap (bit n = enum kind n+1) into a readable list. */
-private fun kindsLabel(kinds: Int): String {
+internal fun kindsLabel(kinds: Int): String {
     val names = buildList {
         if (kinds and 0x01 != 0) add("su")
         if (kinds and 0x02 != 0) add("magisk")
@@ -197,7 +201,7 @@ private fun kindsLabel(kinds: Int): String {
 }
 
 @Composable
-private fun SectionHeader(text: String) {
+internal fun SectionHeader(text: String) {
     HorizontalDivider()
     Text(
         text = text,
