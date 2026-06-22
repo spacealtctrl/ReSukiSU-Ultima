@@ -964,7 +964,7 @@ object SuSFSManager {
             return false
         }
 
-        val success = executeSusfsCommand(context, "hide_sus_mnts_for_all_procs ${if (hideForAll) 1 else 0}")
+        val success = executeSusfsCommand(context, "hide_sus_mnts_for_non_su_procs ${if (hideForAll) 1 else 0}")
         if (success) {
             saveHideSusMountsForAllProcs(context, hideForAll)
             if (isAutoStartEnabled(context)) updateMagiskModule(context)

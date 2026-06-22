@@ -463,7 +463,7 @@ object ScriptGenerator {
                 // SUS挂载隐藏控制
                 val hideValue = if (config.hideSusMountsForAllProcs) 1 else 0
                 appendLine("# 设置SUS挂载隐藏控制")
-                appendLine($$"\"$SUSFS_BIN\" hide_sus_mnts_for_all_procs $$hideValue")
+                appendLine($$"\"$SUSFS_BIN\" hide_sus_mnts_for_non_su_procs $$hideValue")
                 appendLine($$"echo \"$(get_current_time): SUS挂载隐藏控制设置为: $${if (config.hideSusMountsForAllProcs) "对所有进程隐藏" else "仅对非KSU进程隐藏"}\" >> \"$LOG_FILE\"")
                 appendLine()
 
