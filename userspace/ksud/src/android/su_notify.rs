@@ -21,7 +21,7 @@ use crate::android::{ksucalls, utils};
 const ENABLED_FLAG: &str = "/data/adb/ksu/su_notify_enabled";
 const MANAGER_PKG: &str = "/data/adb/ksu/manager_package";
 const LOCK_PATH: &str = "/data/adb/ksu/su_notifyd.lock";
-const KIND_SU: u16 = 1; // KSU_SENTINEL_KIND_SU -> bit 0
+const KIND_SU: u32 = 1; // KSU_SENTINEL_KIND_SU -> bit 0
 const POLL: Duration = Duration::from_secs(5);
 
 fn enabled() -> bool {
