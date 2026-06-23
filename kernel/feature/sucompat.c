@@ -150,12 +150,12 @@ int ksu_handle_execve_sucompat_tp_internal(const char __user **filename_user, in
     char path[sizeof(su) + 1];
     long ret;
     unsigned long addr;
+    bool is_allowed;
 
     if (unlikely(!filename_user))
         goto do_orig_execve;
 
-    if (!ksu_is_allow_uid_for_current(ksu_get_uid_t(current_uid())))
-        goto do_orig_execve;
+    is_allowed = ksu_is_allow_uid_for_current(ksu_get_uid_t(current_uid()));
 
     addr = untagged_addr((unsigned long)*filename_user);
     fn = (const char __user *)addr;
@@ -170,6 +170,13 @@ int ksu_handle_execve_sucompat_tp_internal(const char __user **filename_user, in
 
     if (likely(memcmp(path, su, sizeof(su))))
         goto do_orig_execve;
+
+    // It is su. A non-allowlisted app that tried to run su gets a denied
+    // grant-root event so the manager can raise a "grant root?" notification.
+    if (!is_allowed) {
+        ksu_sulog_emit_grant_root(-EPERM, ksu_get_uid_t(current_uid()), ksu_get_uid_t(current_euid()), GFP_KERNEL);
+        goto do_orig_execve;
+    }
 
     pr_info("sys_execve su found\n");
     pending_sucompat = ksu_sulog_capture_sucompat_tracepoint(*filename_user, argv_user, GFP_KERNEL);
@@ -217,11 +224,15 @@ static inline int do_ksu_handle_execveat_sucompat(int *fd, const char *filename,
     }
 #endif
 
-    if (!is_allowed)
-        return 0;
-
     if (likely(memcmp(filename, su_path, sizeof(su_path))))
         return 0;
+
+    // It is su. A non-allowlisted app that tried to run su gets a denied
+    // grant-root event so the manager can raise a "grant root?" notification.
+    if (!is_allowed) {
+        ksu_sulog_emit_grant_root(-EPERM, ksu_get_uid_t(current_uid()), ksu_get_uid_t(current_euid()), GFP_KERNEL);
+        return 0;
+    }
 
     pr_info("do_execveat_common su found\n");
 
