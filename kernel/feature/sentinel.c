@@ -130,6 +130,23 @@ static bool sentinel_su_notify_once(uid_t uid)
     return first;
 }
 
+/* Clear a uid's notify mark so it can raise a fresh root request again - called
+ * on uncloak, otherwise the once-per-uid dedup would suppress it forever. */
+static void sentinel_su_notify_reset(uid_t uid)
+{
+    int i;
+    unsigned long flags;
+
+    spin_lock_irqsave(&su_notify_lock, flags);
+    for (i = 0; i < su_notified_count; i++) {
+        if (su_notified[i] == uid) {
+            su_notified[i] = su_notified[--su_notified_count]; /* swap-remove */
+            break;
+        }
+    }
+    spin_unlock_irqrestore(&su_notify_lock, flags);
+}
+
 void ksu_sentinel_report(uid_t uid, const char *path, __u16 kind)
 {
     struct ksu_sentinel_event ev;
@@ -230,6 +247,8 @@ int ksu_sentinel_cloak_remove(uid_t uid)
         }
     }
     spin_unlock_irqrestore(&cloak_lock, flags);
+    /* Uncloaking means "let this app ask again" - clear its notify dedup. */
+    sentinel_su_notify_reset(uid);
     return 0;
 }
 
@@ -240,6 +259,11 @@ void ksu_sentinel_cloak_clear(void)
     spin_lock_irqsave(&cloak_lock, flags);
     cloak_count = 0;
     spin_unlock_irqrestore(&cloak_lock, flags);
+
+    /* uncloak-all is a fresh start: let every app raise requests again */
+    spin_lock_irqsave(&su_notify_lock, flags);
+    su_notified_count = 0;
+    spin_unlock_irqrestore(&su_notify_lock, flags);
 }
 
 int ksu_sentinel_cloak_list(uid_t *out, int capacity)
