@@ -132,6 +132,12 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- Watches Sentinel su-probe history and raises root-request notifications. -->
+        <service
+            android:name=".RootRequestMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <receiver
             android:name=".magica.BootCompletedReceiver"
             android:directBootAware="true"
@@ -146,13 +152,20 @@
             </intent-filter>
         </receiver>
 
+        <!-- Starts the root-request monitor at boot (if the feature is enabled). -->
         <receiver
-            android:name=".RootRequestReceiver"
+            android:name=".RootRequestBootReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.resukisu.resukisu.action.ROOT_REQUEST" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- Handles the Grant / Cloak / Ignore notification actions (internal). -->
+        <receiver
+            android:name=".RootRequestReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

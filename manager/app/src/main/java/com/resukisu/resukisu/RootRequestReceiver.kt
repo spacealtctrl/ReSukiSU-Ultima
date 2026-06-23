@@ -10,17 +10,16 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.resukisu.resukisu.ui.util.isSentinelCloaked
 import com.resukisu.resukisu.ui.util.sentinelCloak
 import kotlin.concurrent.thread
 
 /**
- * Receives the kernel/ksud "a non-allowlisted app probed for su" broadcast and
- * raises a notification with three actions:
+ * Raises a root-request notification (Grant / Cloak / Ignore) and handles those
+ * three action buttons. The notification is posted by RootRequestMonitorService
+ * (which watches Sentinel's su-probe history); this receiver only handles taps.
  *   Grant  -> add the app to the superuser allowlist
  *   Cloak  -> add the app to the Sentinel cloak list
  *   Ignore -> dismiss
- * Off unless "Notify on root requests" is enabled in Settings.
  */
 class RootRequestReceiver : BroadcastReceiver() {
 
@@ -30,6 +29,51 @@ class RootRequestReceiver : BroadcastReceiver() {
         private const val CHANNEL_ID = "root_requests"
         private const val EXTRA_ACTION = "su_action"
         private const val EXTRA_UID = "uid"
+
+        /** Post the 3-action root-request notification for [uid]. Called by the
+         *  monitor service after it has filtered (enabled / not cloaked / not granted). */
+        fun postNotification(context: Context, uid: Int) {
+            val pm = context.packageManager
+            val pkg = pm.getPackagesForUid(uid)?.firstOrNull()
+            val label = pkg?.let {
+                runCatching { pm.getApplicationLabel(pm.getApplicationInfo(it, 0)).toString() }.getOrNull()
+            } ?: "uid $uid"
+
+            val nm = context.getSystemService(NotificationManager::class.java) ?: return
+            nm.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, context.getString(R.string.su_notify_channel), NotificationManager.IMPORTANCE_HIGH)
+            )
+
+            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_sys_warning)
+                .setContentTitle(context.getString(R.string.su_notify_title))
+                .setContentText(context.getString(R.string.su_notify_text, label))
+                .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.su_notify_text, label)))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .addAction(0, context.getString(R.string.su_notify_grant), action(context, uid, "grant"))
+                .addAction(0, context.getString(R.string.su_notify_cloak), action(context, uid, "cloak"))
+                .addAction(0, context.getString(R.string.su_notify_ignore), action(context, uid, "ignore"))
+                .build()
+
+            if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                NotificationManagerCompat.from(context).notify(uid, notification) // dedup per uid
+            }
+        }
+
+        private fun action(context: Context, uid: Int, what: String): PendingIntent {
+            val intent = Intent(context, RootRequestReceiver::class.java)
+                .putExtra(EXTRA_ACTION, what)
+                .putExtra(EXTRA_UID, uid)
+            // Unique request code per uid+action so PendingIntents don't collide.
+            val code = uid * 8 + when (what) { "grant" -> 1; "cloak" -> 2; else -> 3 }
+            return PendingIntent.getBroadcast(
+                context, code, intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -46,64 +90,7 @@ class RootRequestReceiver : BroadcastReceiver() {
                 runRoot(context, uid, granted = false)
             }
             "ignore" -> cancel(context, uid)
-            else -> postRequest(context, uid)
         }
-    }
-
-    // ---- the incoming request from ksud ----
-    private fun postRequest(context: Context, uid: Int) {
-        if (!context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, false)) return
-        val pending = goAsync()
-        thread {
-            try {
-                // A cloaked app must not be able to raise root requests - ignore it
-                // (the cloak list is a root query, so this runs off the main thread).
-                if (isSentinelCloaked(uid)) return@thread
-
-                val pm = context.packageManager
-                val pkg = pm.getPackagesForUid(uid)?.firstOrNull()
-                val label = pkg?.let {
-                    runCatching { pm.getApplicationLabel(pm.getApplicationInfo(it, 0)).toString() }.getOrNull()
-                } ?: "uid $uid"
-
-                val nm = context.getSystemService(NotificationManager::class.java) ?: return@thread
-                nm.createNotificationChannel(
-                    NotificationChannel(CHANNEL_ID, context.getString(R.string.su_notify_channel), NotificationManager.IMPORTANCE_HIGH)
-                )
-
-                val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.stat_sys_warning)
-                    .setContentTitle(context.getString(R.string.su_notify_title))
-                    .setContentText(context.getString(R.string.su_notify_text, label))
-                    .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.su_notify_text, label)))
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setAutoCancel(true)
-                    .addAction(0, context.getString(R.string.su_notify_grant), action(context, uid, "grant"))
-                    .addAction(0, context.getString(R.string.su_notify_cloak), action(context, uid, "cloak"))
-                    .addAction(0, context.getString(R.string.su_notify_ignore), action(context, uid, "ignore"))
-                    .build()
-
-                if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
-                    PackageManager.PERMISSION_GRANTED
-                ) {
-                    NotificationManagerCompat.from(context).notify(uid, notification) // dedup per uid
-                }
-            } finally {
-                pending.finish()
-            }
-        }
-    }
-
-    private fun action(context: Context, uid: Int, what: String): PendingIntent {
-        val intent = Intent(context, RootRequestReceiver::class.java)
-            .putExtra(EXTRA_ACTION, what)
-            .putExtra(EXTRA_UID, uid)
-        // Unique request code per uid+action so PendingIntents don't collide.
-        val code = uid * 8 + when (what) { "grant" -> 1; "cloak" -> 2; else -> 3 }
-        return PendingIntent.getBroadcast(
-            context, code, intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
     }
 
     private fun cancel(context: Context, uid: Int) {

@@ -394,23 +394,14 @@ suspend fun disableZygisk(): Boolean = withContext(Dispatchers.IO) {
     )
 }
 
-// The manager APK has a randomized package name, so ksud can't hardcode the
-// broadcast target for root-request notifications. Publish our package here when
-// the feature is on; remove it when off.
-private const val MANAGER_PACKAGE_FILE = "/data/adb/ksu/manager_package"
-
-suspend fun setRootNotifyRegistered(register: Boolean): Boolean = withContext(Dispatchers.IO) {
-    if (register) {
-        // Root-request notifications ride the sulog pipe, so enable sulog (this
-        // also spawns sulogd via set_kernel_feature) and publish our randomized
-        // package so ksud can target this manager's receiver. The user only ever
-        // flips the "Notify on root requests" toggle; SU Log is handled here.
-        execKsud("feature set sulog 1")
-        ShellUtils.fastCmdResult(
-            getRootShell(), "echo ${ksuApp.packageName} > $MANAGER_PACKAGE_FILE"
-        )
-    } else {
-        ShellUtils.fastCmdResult(getRootShell(), "rm -f $MANAGER_PACKAGE_FILE; true")
+/**
+ * Root-request notifications rely on Sentinel (not SU Log). If SU Log is off but
+ * a stray sulogd is running (a leftover from an earlier build that started it),
+ * stop it - we never want to touch SU Log. No-op if SU Log is enabled.
+ */
+suspend fun stopStraySulogd(): Unit = withContext(Dispatchers.IO) {
+    if (getFeaturePersistValue("sulog") != 1L) {
+        ShellUtils.fastCmdResult(getRootShell(), "pkill -f 'ksud sulogd' 2>/dev/null; true")
     }
 }
 

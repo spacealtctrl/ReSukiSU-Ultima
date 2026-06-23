@@ -108,13 +108,13 @@ import com.resukisu.resukisu.ui.theme.CardConfig
 import com.resukisu.resukisu.ui.theme.ThemeConfig
 import com.resukisu.resukisu.ui.theme.blurEffect
 import com.resukisu.resukisu.ui.theme.blurSource
+import com.resukisu.resukisu.RootRequestMonitorService
 import com.resukisu.resukisu.RootRequestReceiver
 import com.resukisu.resukisu.ui.util.LocalSnackbarHost
 import com.resukisu.resukisu.ui.util.disableZygisk
 import com.resukisu.resukisu.ui.util.enableZygisk
 import com.resukisu.resukisu.ui.util.getBugreportFile
 import com.resukisu.resukisu.ui.util.isZygiskEnabled
-import com.resukisu.resukisu.ui.util.setRootNotifyRegistered
 import com.resukisu.resukisu.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -350,13 +350,15 @@ fun SettingsPage(bottomPadding: Dp) {
                                         suNotify = on
                                         suNotifyPrefs.edit()
                                             .putBoolean(RootRequestReceiver.KEY_ENABLED, on).apply()
-                                        // Publish our (randomized) package so ksud
-                                        // can target this manager's receiver.
-                                        scope.launch { setRootNotifyRegistered(on) }
+                                        // Root requests are surfaced by watching Sentinel's
+                                        // su-probe history - no SU Log involved.
                                         if (on) {
                                             notifPermLauncher.launch(
                                                 android.Manifest.permission.POST_NOTIFICATIONS
                                             )
+                                            RootRequestMonitorService.start(context)
+                                        } else {
+                                            RootRequestMonitorService.stop(context)
                                         }
                                     },
                                 )
