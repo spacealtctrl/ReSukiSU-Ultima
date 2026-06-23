@@ -392,11 +392,18 @@ suspend fun disableZygisk(): Boolean = withContext(Dispatchers.IO) {
 private const val MANAGER_PACKAGE_FILE = "/data/adb/ksu/manager_package"
 
 suspend fun setRootNotifyRegistered(register: Boolean): Boolean = withContext(Dispatchers.IO) {
-    ShellUtils.fastCmdResult(
-        getRootShell(),
-        if (register) "echo ${ksuApp.packageName} > $MANAGER_PACKAGE_FILE"
-        else "rm -f $MANAGER_PACKAGE_FILE; true"
-    )
+    if (register) {
+        // Root-request notifications ride the sulog pipe, so enable sulog (this
+        // also spawns sulogd via set_kernel_feature) and publish our randomized
+        // package so ksud can target this manager's receiver. The user only ever
+        // flips the "Notify on root requests" toggle; SU Log is handled here.
+        execKsud("feature set sulog 1")
+        ShellUtils.fastCmdResult(
+            getRootShell(), "echo ${ksuApp.packageName} > $MANAGER_PACKAGE_FILE"
+        )
+    } else {
+        ShellUtils.fastCmdResult(getRootShell(), "rm -f $MANAGER_PACKAGE_FILE; true")
+    }
 }
 
 fun install() {

@@ -196,6 +196,13 @@ pub fn on_boot_completed() {
     // Re-apply persisted Sentinel state (enabled / auto-cloak / cloak-set).
     crate::android::sentinel::restore_config();
 
+    // Reliability: starting sulogd during post-fs-data can fail (too early);
+    // ensure it here too. sulogd reads kernel su events and drives the
+    // root-request notification. Idempotent (single-instance lock).
+    if let Err(e) = crate::android::sulog::ensure_sulogd_running() {
+        warn!("ensure_sulogd_running at boot_completed failed: {e}");
+    }
+
     run_stage("boot-completed", false);
 }
 

@@ -25,6 +25,7 @@
 #include "compat/kernel_compat.h"
 #include "uapi/sentinel.h"
 #include "uapi/supercall.h"
+#include "sulog/event.h"
 
 #define SENTINEL_MAX_QUEUED 256
 #define SENTINEL_DEDUP_SLOTS 32
@@ -103,6 +104,32 @@ static __u32 sentinel_dedup_bump(uid_t uid, __u16 kind)
     return 1;
 }
 
+/* Notify the manager once per uid (per boot) when a non-allowlisted app probes
+ * for su, so it can offer to grant root. */
+#define SENTINEL_SU_NOTIFY_MAX 256
+static uid_t su_notified[SENTINEL_SU_NOTIFY_MAX];
+static int su_notified_count;
+static DEFINE_SPINLOCK(su_notify_lock);
+
+static bool sentinel_su_notify_once(uid_t uid)
+{
+    int i;
+    bool first = true;
+    unsigned long flags;
+
+    spin_lock_irqsave(&su_notify_lock, flags);
+    for (i = 0; i < su_notified_count; i++) {
+        if (su_notified[i] == uid) {
+            first = false;
+            break;
+        }
+    }
+    if (first && su_notified_count < SENTINEL_SU_NOTIFY_MAX)
+        su_notified[su_notified_count++] = uid;
+    spin_unlock_irqrestore(&su_notify_lock, flags);
+    return first;
+}
+
 void ksu_sentinel_report(uid_t uid, const char *path, __u16 kind)
 {
     struct ksu_sentinel_event ev;
@@ -112,6 +139,12 @@ void ksu_sentinel_report(uid_t uid, const char *path, __u16 kind)
         return;
 
     ksu_sentinel_history_record(uid, kind);
+
+    /* First time a non-allowlisted app probes for su, surface a root request so
+     * the manager can offer to grant it. Gated by sulog being enabled (the
+     * "Notify on root requests" toggle turns that on). */
+    if (kind == KSU_SENTINEL_KIND_SU && uid >= 10000 && !ksu_is_allow_uid(uid) && sentinel_su_notify_once(uid))
+        ksu_sulog_emit_grant_root(-EPERM, uid, uid, GFP_ATOMIC);
 
     count = sentinel_dedup_bump(uid, kind);
     if (!count)
