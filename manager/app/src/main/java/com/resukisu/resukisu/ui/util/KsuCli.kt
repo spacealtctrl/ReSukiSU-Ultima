@@ -386,6 +386,19 @@ suspend fun disableZygisk(): Boolean = withContext(Dispatchers.IO) {
     )
 }
 
+// The manager APK has a randomized package name, so ksud can't hardcode the
+// broadcast target for root-request notifications. Publish our package here when
+// the feature is on; remove it when off.
+private const val MANAGER_PACKAGE_FILE = "/data/adb/ksu/manager_package"
+
+suspend fun setRootNotifyRegistered(register: Boolean): Boolean = withContext(Dispatchers.IO) {
+    ShellUtils.fastCmdResult(
+        getRootShell(),
+        if (register) "echo ${ksuApp.packageName} > $MANAGER_PACKAGE_FILE"
+        else "rm -f $MANAGER_PACKAGE_FILE; true"
+    )
+}
+
 fun install() {
     val start = SystemClock.elapsedRealtime()
     val libadbroot = File(ksuApp.applicationInfo.nativeLibraryDir, "libadbroot.so").absolutePath

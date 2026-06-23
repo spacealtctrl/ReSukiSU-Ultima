@@ -572,13 +572,24 @@ fn format_record_line(header: EventRecordHeader, payload: &[u8]) -> Result<Strin
     Ok(format_event_line(&header, &event))
 }
 
+// The manager APK is built with a randomized package name (anti-detection), so
+// the broadcast target can't be hardcoded. The manager writes its own package
+// name here when root-request notifications are enabled; if it's absent the
+// feature is off and nothing is sent.
+const MANAGER_PACKAGE_PATH: &str = "/data/adb/ksu/manager_package";
+
 fn broadcast_root_request(uid: u32) {
+    let pkg = match std::fs::read_to_string(MANAGER_PACKAGE_PATH) {
+        Ok(s) => s.trim().to_string(),
+        Err(_) => return,
+    };
+    if pkg.is_empty() {
+        return;
+    }
     let _ = Command::new("am")
         .arg("broadcast")
         .arg("-n")
-        .arg("com.resukisu.resukisu/.RootRequestReceiver")
-        .arg("-a")
-        .arg("com.resukisu.resukisu.action.ROOT_REQUEST")
+        .arg(format!("{pkg}/.RootRequestReceiver"))
         .arg("--ei")
         .arg("uid")
         .arg(uid.to_string())
