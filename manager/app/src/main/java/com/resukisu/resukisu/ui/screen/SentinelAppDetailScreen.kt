@@ -180,7 +180,7 @@ fun SentinelAppDetailScreen(uid: Int) {
                     }
                 }
                 if (showAll) {
-                    // White (non-dangerous) perms are info-only — no Manage button.
+                    // White (non-dangerous) perms are info-only - no Manage button.
                     items(otherPerms, key = { it.perm }) { p ->
                         PermRow(p, onMode = null)
                     }
@@ -192,7 +192,7 @@ fun SentinelAppDetailScreen(uid: Int) {
                 ListItem(
                     modifier = Modifier.clickable { navigator.push(Route.SentinelSpy(uid)) },
                     leadingContent = { Icon(Icons.Filled.Visibility, contentDescription = null) },
-                    headlineContent = { Text("Spy — live activity log") },
+                    headlineContent = { Text("Spy - live activity log") },
                     supportingContent = { Text("Everything it logs: Play Store, attestation, failures") },
                 )
             }

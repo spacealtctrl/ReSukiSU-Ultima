@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.automirrored.rounded.Article
 import androidx.compose.material.icons.filled.Adb
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
@@ -107,6 +108,7 @@ import com.resukisu.resukisu.ui.theme.CardConfig
 import com.resukisu.resukisu.ui.theme.ThemeConfig
 import com.resukisu.resukisu.ui.theme.blurEffect
 import com.resukisu.resukisu.ui.theme.blurSource
+import com.resukisu.resukisu.RootRequestReceiver
 import com.resukisu.resukisu.ui.util.LocalSnackbarHost
 import com.resukisu.resukisu.ui.util.disableZygisk
 import com.resukisu.resukisu.ui.util.enableZygisk
@@ -162,6 +164,15 @@ fun SettingsPage(bottomPadding: Dp) {
         var zygiskEnabled by remember { mutableStateOf(false) }
         var zygiskBusy by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) { zygiskEnabled = isZygiskEnabled() }
+        val suNotifyPrefs = context.getSharedPreferences(
+            RootRequestReceiver.PREFS, android.content.Context.MODE_PRIVATE
+        )
+        var suNotify by remember {
+            mutableStateOf(suNotifyPrefs.getBoolean(RootRequestReceiver.KEY_ENABLED, false))
+        }
+        val notifPermLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { }
         val exportBugreportLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.CreateDocument("application/gzip")
         ) { uri: Uri? ->
@@ -300,7 +311,7 @@ fun SettingsPage(bottomPadding: Dp) {
                             }
 
                             item {
-                                // Built-in Zygisk (Zygisk-Ultima) — off by default
+                                // Built-in Zygisk (Zygisk-Ultima) - off by default
                                 SettingsSwitchWidget(
                                     icon = Icons.Filled.Android,
                                     title = stringResource(R.string.settings_zygisk),
@@ -322,6 +333,26 @@ fun SettingsPage(bottomPadding: Dp) {
                                                 ),
                                                 Toast.LENGTH_LONG,
                                             ).show()
+                                        }
+                                    },
+                                )
+                            }
+
+                            item {
+                                // Notify (Magisk-style) when an app requests root
+                                SettingsSwitchWidget(
+                                    icon = Icons.Filled.NotificationsActive,
+                                    title = stringResource(R.string.settings_su_notify),
+                                    description = stringResource(R.string.settings_su_notify_summary),
+                                    checked = suNotify,
+                                    onCheckedChange = { on ->
+                                        suNotify = on
+                                        suNotifyPrefs.edit()
+                                            .putBoolean(RootRequestReceiver.KEY_ENABLED, on).apply()
+                                        if (on) {
+                                            notifPermLauncher.launch(
+                                                android.Manifest.permission.POST_NOTIFICATIONS
+                                            )
                                         }
                                     },
                                 )

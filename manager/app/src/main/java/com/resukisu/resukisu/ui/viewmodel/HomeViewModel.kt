@@ -125,7 +125,7 @@ class HomeViewModel : ViewModel() {
                 val status = SystemStatus(
                     isManager = isManager,
                     ksuVersion = ksuVersion,
-                    ksuFullVersion = "$fullVersion (${Natives.version}/${kernelUAPIVersion})",
+                    ksuFullVersion = "$fullVersion (${Natives.version})",
                     lkmMode = lkmMode,
                     kernelVersion = kernelVersion,
                     isRootAvailable = runCatching { rootAvailable() }.getOrDefault(false),

@@ -36,7 +36,7 @@ import com.resukisu.resukisu.ui.navigation.LocalNavigator
 import com.resukisu.resukisu.ui.util.dumpAppLog
 import kotlinx.coroutines.delay
 
-// High-signal phrases (attestation / Play Store integrity) — highlighted so they pop.
+// High-signal phrases (attestation / Play Store integrity) - highlighted so they pop.
 private val SPY_KEYWORDS = listOf(
     "attest", "integrity", "safetynet", "play protect", "playprotect",
     "vending", "play store", "playstore", "denied", "rejected", "license",

@@ -859,7 +859,7 @@ private fun InfoCard(
 
             InfoCardItem(
                 stringResource(R.string.home_manager_version),
-                "${systemInfo.managerVersion.first} (${systemInfo.managerVersion.second}/${systemInfo.managerVersion.third})",
+                "${systemInfo.managerVersion.first} (${systemInfo.managerVersion.second})",
                 icon = Icons.Default.SettingsSuggest,
             )
 

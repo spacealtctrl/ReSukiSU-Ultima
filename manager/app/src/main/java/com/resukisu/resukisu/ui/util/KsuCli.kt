@@ -466,7 +466,7 @@ private fun flashWithIO(
 }
 
 // Zygisk is built-in; reject other Zygisk *implementations* (they conflict).
-// NOTE: only implementations are blocked — Zygisk *modules* (e.g. LSPosed,
+// NOTE: only implementations are blocked - Zygisk *modules* (e.g. LSPosed,
 // id zygisk_lsposed) are NOT in this set and install normally.
 private val BLOCKED_ZYGISK_IMPL_IDS = setOf(
     "zygisksu", "rezygisk", "shirokozygisk", "zygisk_next", "zygisknext", "neozygisk",
@@ -495,7 +495,7 @@ fun flashModule(
         if (modId != null && modId in BLOCKED_ZYGISK_IMPL_IDS) {
             onStderr(
                 "Blocked: \"$modId\" is a Zygisk implementation. ReSukiSU Ultima has " +
-                    "Zygisk built-in — installing another would conflict. " +
+                    "Zygisk built-in - installing another would conflict. " +
                     "(Zygisk modules like LSPosed still work.)"
             )
             file.delete()

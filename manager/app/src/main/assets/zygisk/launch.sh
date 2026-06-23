@@ -16,7 +16,7 @@ echo "--- $(date) launch.sh start ---" >> "$LOG" 2>/dev/null
 
 cd "$ZDIR" || exit 1
 
-# sepolicy isn't a module, so ksud won't auto-load it at boot — re-apply here.
+# sepolicy isn't a module, so ksud won't auto-load it at boot - re-apply here.
 if [ -f "$ZDIR/payload/sepolicy.rule" ]; then
   /data/adb/ksu/bin/ksud sepolicy apply "$ZDIR/payload/sepolicy.rule" >> "$LOG" 2>&1
   echo "$(date) sepolicy applied (exit $?)" >> "$LOG" 2>/dev/null

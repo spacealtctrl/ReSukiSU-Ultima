@@ -563,7 +563,30 @@ fn format_record_line(header: EventRecordHeader, payload: &[u8]) -> Result<Strin
     }
 
     let event = SulogEvent::parse(payload)?;
+    // A denied grant-root (event_type 3 = ioctl_grant_root, retval != 0) means a
+    // non-allowlisted app asked for root — nudge the manager to raise a
+    // "grant root?" notification.
+    if event.event_type == 3 && event.retval != 0 {
+        broadcast_root_request(event.uid);
+    }
     Ok(format_event_line(&header, &event))
+}
+
+fn broadcast_root_request(uid: u32) {
+    let _ = Command::new("am")
+        .arg("broadcast")
+        .arg("-n")
+        .arg("com.resukisu.resukisu/.RootRequestReceiver")
+        .arg("-a")
+        .arg("com.resukisu.resukisu.action.ROOT_REQUEST")
+        .arg("--ei")
+        .arg("uid")
+        .arg(uid.to_string())
+        .arg("-f")
+        .arg("32") // FLAG_INCLUDE_STOPPED_PACKAGES
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
 }
 
 fn handle_readable(fd: RawFd, writer: &mut DailyLogWriter) -> Result<ReadState> {

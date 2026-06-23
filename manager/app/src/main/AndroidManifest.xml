@@ -145,6 +145,14 @@
                 <action android:name="com.resukisu.resukisu.magica.LAUNCH" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".RootRequestReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.resukisu.resukisu.action.ROOT_REQUEST" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
