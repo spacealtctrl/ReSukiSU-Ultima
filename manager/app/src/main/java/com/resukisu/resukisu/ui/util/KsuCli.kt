@@ -465,6 +465,20 @@ private fun flashWithIO(
     }
 }
 
+// Zygisk is built-in; reject other Zygisk *implementations* (they conflict).
+// NOTE: only implementations are blocked — Zygisk *modules* (e.g. LSPosed,
+// id zygisk_lsposed) are NOT in this set and install normally.
+private val BLOCKED_ZYGISK_IMPL_IDS = setOf(
+    "zygisksu", "rezygisk", "shirokozygisk", "zygisk_next", "zygisknext", "neozygisk",
+)
+
+private fun zipModuleId(file: File): String? = runCatching {
+    java.util.zip.ZipFile(file).use { zf ->
+        val entry = zf.getEntry("module.prop") ?: return null
+        Properties().apply { load(zf.getInputStream(entry)) }.getProperty("id")
+    }
+}.getOrNull()
+
 fun flashModule(
     uri: Uri,
     onFinish: (Boolean, Int) -> Unit,
@@ -476,6 +490,17 @@ fun flashModule(
         val file = File(ksuApp.cacheDir, "module.zip")
         file.outputStream().use { output ->
             this?.copyTo(output)
+        }
+        val modId = zipModuleId(file)?.lowercase()
+        if (modId != null && modId in BLOCKED_ZYGISK_IMPL_IDS) {
+            onStderr(
+                "Blocked: \"$modId\" is a Zygisk implementation. ReSukiSU Ultima has " +
+                    "Zygisk built-in — installing another would conflict. " +
+                    "(Zygisk modules like LSPosed still work.)"
+            )
+            file.delete()
+            onFinish(false, 1)
+            return false
         }
         val cmd = "module install ${file.absolutePath}"
         val result = flashWithIO("${getKsuDaemonPath()} $cmd", onStdout, onStderr)
@@ -875,6 +900,14 @@ fun getMetaModuleImplement(): String {
 }
 
 fun getZygiskImplement(): String {
+    // Built-in Zygisk (Zygisk-Ultima): active when deployed + the boot hook is in
+    // place. Shown as "Active" on the home screen; hidden entirely when off.
+    if (SuFile.open("$ZYGISK_DIR/enable").isFile &&
+        SuFile.open(ZYGISK_LAUNCH_DST).isFile
+    ) {
+        return "Active"
+    }
+
     val zygiskModuleIds = listOf(
         "zygisksu",
         "rezygisk",
