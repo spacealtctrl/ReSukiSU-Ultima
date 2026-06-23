@@ -43,6 +43,15 @@ fn broadcast(pkg: &str, uid: u32) {
         .status();
 }
 
+fn boottime_ns() -> u64 {
+    let mut ts = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    unsafe { libc::clock_gettime(libc::CLOCK_BOOTTIME, &mut ts) };
+    (ts.tv_sec as u64).saturating_mul(1_000_000_000) + (ts.tv_nsec as u64)
+}
+
 /// Foreground daemon loop. Exits when the feature is disabled.
 pub fn run_su_notifyd() -> Result<()> {
     // Single instance.
@@ -57,21 +66,31 @@ pub fn run_su_notifyd() -> Result<()> {
         return Ok(()); // another instance owns it
     }
 
+    // Only notify on probes that happen AFTER we start. This skips the burst of
+    // boot-time su-probes already in the history (apps checking for root at
+    // startup) - which would otherwise notify on every boot, including for apps
+    // that are cloaked. A real "wants root" probe happens when the user uses an
+    // app, which is always later than this.
+    let start_ns = boottime_ns();
     let mut notified: HashSet<u32> = HashSet::new();
     while enabled() {
         let pkg = std::fs::read_to_string(MANAGER_PKG)
             .unwrap_or_default()
             .trim()
             .to_string();
-        if !pkg.is_empty() {
-            let cloaked: HashSet<u32> = ksucalls::sentinel_cloak_list()
-                .unwrap_or_default()
-                .into_iter()
-                .collect();
+        // If we can't read the cloak set, skip this round rather than risk
+        // notifying a cloaked app.
+        if !pkg.is_empty()
+            && let Ok(cloaked_vec) = ksucalls::sentinel_cloak_list()
+        {
+            let cloaked: HashSet<u32> = cloaked_vec.into_iter().collect();
             if let Ok(entries) = ksucalls::sentinel_history() {
                 for e in entries {
                     if (e.kinds & KIND_SU) == 0 || e.uid < 10000 {
                         continue;
+                    }
+                    if e.last_ns <= start_ns {
+                        continue; // boot-time / pre-start probe - ignore
                     }
                     if cloaked.contains(&e.uid) {
                         notified.remove(&e.uid); // uncloaking lets it notify again

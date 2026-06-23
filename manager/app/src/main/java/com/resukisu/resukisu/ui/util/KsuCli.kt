@@ -406,11 +406,14 @@ private const val MANAGER_PACKAGE_FILE = "/data/adb/ksu/manager_package"
 suspend fun setSuNotify(enable: Boolean): Boolean = withContext(Dispatchers.IO) {
     val shell = getRootShell()
     if (enable) {
+        // Restart cleanly: kill any old daemon (so a freshly-deployed ksud binary
+        // takes over and the flock is free), then start the current one.
         ShellUtils.fastCmdResult(
             shell,
             "echo ${ksuApp.packageName} > $MANAGER_PACKAGE_FILE; " +
                 "touch $SU_NOTIFY_FLAG; " +
-                "${getKsuDaemonPath()} debug su-notifyd"
+                "pkill -f 'ksud su-notifyd' 2>/dev/null; sleep 1; " +
+                "/data/adb/ksu/bin/ksud debug su-notifyd"
         )
     } else {
         ShellUtils.fastCmdResult(
