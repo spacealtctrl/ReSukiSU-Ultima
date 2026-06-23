@@ -156,6 +156,14 @@ suspend fun getSentinelCloaked(): List<Int> = withContext(Dispatchers.IO) {
         .mapNotNull { it.trim().toIntOrNull() }
 }
 
+/** Blocking cloak check (call off the main thread). A cloaked app must not be
+ *  able to raise root requests, so the notification path consults this. */
+fun isSentinelCloaked(uid: Int): Boolean = runCatching {
+    getRootShell().newJob()
+        .add("${getKsuDaemonPath()} sentinel cloaked").to(ArrayList<String>(), null).exec().out
+        .any { it.trim().toIntOrNull() == uid }
+}.getOrDefault(false)
+
 suspend fun drainSentinelProbes(): List<SentinelProbe> = withContext(Dispatchers.IO) {
     val out = getRootShell().newJob()
         .add("${getKsuDaemonPath()} sentinel drain").to(ArrayList<String>(), null).exec().out

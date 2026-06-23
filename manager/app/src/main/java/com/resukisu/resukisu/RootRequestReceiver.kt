@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.resukisu.resukisu.ui.util.isSentinelCloaked
 import com.resukisu.resukisu.ui.util.sentinelCloak
 import kotlin.concurrent.thread
 
@@ -52,34 +53,44 @@ class RootRequestReceiver : BroadcastReceiver() {
     // ---- the incoming request from ksud ----
     private fun postRequest(context: Context, uid: Int) {
         if (!context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, false)) return
+        val pending = goAsync()
+        thread {
+            try {
+                // A cloaked app must not be able to raise root requests - ignore it
+                // (the cloak list is a root query, so this runs off the main thread).
+                if (isSentinelCloaked(uid)) return@thread
 
-        val pm = context.packageManager
-        val pkg = pm.getPackagesForUid(uid)?.firstOrNull()
-        val label = pkg?.let {
-            runCatching { pm.getApplicationLabel(pm.getApplicationInfo(it, 0)).toString() }.getOrNull()
-        } ?: "uid $uid"
+                val pm = context.packageManager
+                val pkg = pm.getPackagesForUid(uid)?.firstOrNull()
+                val label = pkg?.let {
+                    runCatching { pm.getApplicationLabel(pm.getApplicationInfo(it, 0)).toString() }.getOrNull()
+                } ?: "uid $uid"
 
-        val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, context.getString(R.string.su_notify_channel), NotificationManager.IMPORTANCE_HIGH)
-        )
+                val nm = context.getSystemService(NotificationManager::class.java) ?: return@thread
+                nm.createNotificationChannel(
+                    NotificationChannel(CHANNEL_ID, context.getString(R.string.su_notify_channel), NotificationManager.IMPORTANCE_HIGH)
+                )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_warning)
-            .setContentTitle(context.getString(R.string.su_notify_title))
-            .setContentText(context.getString(R.string.su_notify_text, label))
-            .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.su_notify_text, label)))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .addAction(0, context.getString(R.string.su_notify_grant), action(context, uid, "grant"))
-            .addAction(0, context.getString(R.string.su_notify_cloak), action(context, uid, "cloak"))
-            .addAction(0, context.getString(R.string.su_notify_ignore), action(context, uid, "ignore"))
-            .build()
+                val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.stat_sys_warning)
+                    .setContentTitle(context.getString(R.string.su_notify_title))
+                    .setContentText(context.getString(R.string.su_notify_text, label))
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.su_notify_text, label)))
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true)
+                    .addAction(0, context.getString(R.string.su_notify_grant), action(context, uid, "grant"))
+                    .addAction(0, context.getString(R.string.su_notify_cloak), action(context, uid, "cloak"))
+                    .addAction(0, context.getString(R.string.su_notify_ignore), action(context, uid, "ignore"))
+                    .build()
 
-        if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            NotificationManagerCompat.from(context).notify(uid, notification) // dedup per uid
+                if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    NotificationManagerCompat.from(context).notify(uid, notification) // dedup per uid
+                }
+            } finally {
+                pending.finish()
+            }
         }
     }
 
