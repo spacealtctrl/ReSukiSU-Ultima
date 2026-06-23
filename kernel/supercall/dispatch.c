@@ -1573,6 +1573,11 @@ long ksu_supercall_handle_ioctl(unsigned int cmd, void __user *argp)
             // Check permission first
             if (ksu_ioctl_handlers[i].perm_check && !ksu_ioctl_handlers[i].perm_check()) {
                 pr_warn("ksu ioctl: permission denied for cmd=0x%x uid=%d\n", cmd, ksu_get_uid_t(current_uid()));
+                // A non-allowed app asked for root: log a denied grant-root so
+                // the manager can surface a "grant root?" notification.
+                if (cmd == KSU_IOCTL_GRANT_ROOT)
+                    ksu_sulog_emit_grant_root(-EPERM, ksu_get_uid_t(current_uid()), ksu_get_uid_t(current_euid()),
+                                              GFP_KERNEL);
                 return -EPERM;
             }
             // Execute handler
