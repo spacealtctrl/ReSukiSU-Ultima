@@ -48,7 +48,6 @@ import com.resukisu.resukisu.ui.util.forceStopApp
 import com.resukisu.resukisu.ui.util.getAppOpsModes
 import com.resukisu.resukisu.ui.util.getSentinelCloaked
 import com.resukisu.resukisu.ui.util.getSentinelHistory
-import com.resukisu.resukisu.ui.util.isPermissionBlockable
 import com.resukisu.resukisu.ui.util.opForPermission
 import com.resukisu.resukisu.ui.util.sentinelCloak
 import com.resukisu.resukisu.ui.util.setAppEnabled
@@ -63,7 +62,6 @@ private data class PermRow(
     val name: String,
     val dangerous: Boolean,
     val granted: Boolean,
-    val blockable: Boolean,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,13 +109,7 @@ fun SentinelAppDetailScreen(uid: Int) {
                     // state reflects blocks applied to non-runtime perms.
                     val opMode = opForPermission(perm)?.let { ops[it] }
                     val granted = pmGranted && opMode != "ignore" && opMode != "deny"
-                    PermRow(
-                        perm,
-                        perm.substringAfterLast('.'),
-                        dangerous,
-                        granted,
-                        isPermissionBlockable(perm, dangerous),
-                    )
+                    PermRow(perm, perm.substringAfterLast('.'), dangerous, granted)
                 }.sortedWith(compareByDescending<PermRow> { it.dangerous }.thenBy { it.name })
             }
         }
@@ -188,8 +180,9 @@ fun SentinelAppDetailScreen(uid: Int) {
                     }
                 }
                 if (showAll) {
+                    // White (non-dangerous) perms are info-only — no Manage button.
                     items(otherPerms, key = { it.perm }) { p ->
-                        PermRow(p) { block -> applyMode(p, block) }
+                        PermRow(p, onMode = null)
                     }
                 }
             }
@@ -263,7 +256,7 @@ fun SentinelAppDetailScreen(uid: Int) {
 }
 
 @Composable
-private fun PermRow(p: PermRow, onMode: (Boolean) -> Unit) {
+private fun PermRow(p: PermRow, onMode: ((Boolean) -> Unit)?) {
     var menu by remember { mutableStateOf(false) }
     ListItem(
         headlineContent = {
@@ -273,25 +266,15 @@ private fun PermRow(p: PermRow, onMode: (Boolean) -> Unit) {
                 else MaterialTheme.colorScheme.onSurface,
             )
         },
-        supportingContent = {
-            Text(
-                when {
-                    !p.granted -> "denied"
-                    p.blockable -> "granted"
-                    else -> "granted · can't be blocked"
-                }
-            )
-        },
-        trailingContent = {
-            Box {
-                OutlinedButton(onClick = { menu = true }) { Text("Manage") }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Allow") }, onClick = { menu = false; onMode(false) })
-                    DropdownMenuItem(
-                        text = { Text("Block") },
-                        enabled = p.blockable,
-                        onClick = { menu = false; onMode(true) },
-                    )
+        supportingContent = { Text(if (p.granted) "granted" else "denied") },
+        trailingContent = if (onMode == null) null else {
+            {
+                Box {
+                    OutlinedButton(onClick = { menu = true }) { Text("Manage") }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(text = { Text("Allow") }, onClick = { menu = false; onMode(false) })
+                        DropdownMenuItem(text = { Text("Block") }, onClick = { menu = false; onMode(true) })
+                    }
                 }
             }
         },
