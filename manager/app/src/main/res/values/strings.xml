@@ -228,8 +228,6 @@
     <string name="settings_zygisk_summary">Built-in Zygisk - zygote injection for Zygisk modules. Reboot to apply.</string>
     <string name="settings_zygisk_reboot_toast">Saved - reboot to apply Zygisk changes</string>
     <string name="settings_zygisk_failed_toast">Zygisk operation failed</string>
-    <string name="settings_su_notify">Notify on root requests</string>
-    <string name="settings_su_notify_summary">Show a notification when an app requests root, so you can grant it.</string>
     <string name="su_notify_channel">Root requests</string>
     <string name="su_notify_title">Root request</string>
     <string name="su_notify_text">%1$s is requesting root access.</string>
@@ -239,8 +237,6 @@
     <string name="su_notify_granted_toast">Granted root to %1$s</string>
     <string name="su_notify_cloaked_toast">Cloaked %1$s</string>
     <string name="su_notify_failed_toast">Action failed for %1$s</string>
-    <string name="su_monitor_channel">Root request monitor</string>
-    <string name="su_monitor_title">Watching for root requests</string>
     <string name="feature_status_managed_summary">This feature is managed by a module</string>
     <string name="settings_mode_default">Default</string>
     <string name="more_settings">More settings</string>
@@ -764,6 +760,8 @@ Important Note:\n
     <string name="sentinel_enable">Enable Sentinel</string>
     <string name="sentinel_auto">Auto-cloak probers</string>
     <string name="sentinel_auto_summary">Automatically hide root from any app that probes</string>
+    <string name="sentinel_notify">Notify on root requests</string>
+    <string name="sentinel_notify_summary">Get a notification to Grant, Cloak, or Ignore when an app asks for root. Cannot be on with Auto-cloak.</string>
     <string name="sentinel_recent_probes">Recent probes</string>
     <string name="sentinel_cloaked_apps">Cloaked apps</string>
     <string name="sentinel_no_probes">No probes detected yet</string>

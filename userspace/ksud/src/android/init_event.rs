@@ -196,6 +196,11 @@ pub fn on_boot_completed() {
     // Re-apply persisted Sentinel state (enabled / auto-cloak / cloak-set).
     crate::android::sentinel::restore_config();
 
+    // Start the root-request notifier daemon if enabled (Sentinel-driven; no SU Log).
+    if let Err(e) = crate::android::su_notify::ensure_su_notifyd_running() {
+        warn!("ensure_su_notifyd_running failed: {e}");
+    }
+
     run_stage("boot-completed", false);
 }
 

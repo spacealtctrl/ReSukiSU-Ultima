@@ -9,7 +9,7 @@ use crate::{
     android::{
         debug, dynamic_manager, feature, init_event, ksucalls,
         module::{self, module_config, regenerate_preinit_rc},
-        profile, sentinel, sepolicy, su, sulog, susfs, uapi, umount_config, utils,
+        profile, sentinel, sepolicy, su, su_notify, sulog, susfs, uapi, umount_config, utils,
     },
     apk_sign, assets,
     boot_patch::{BootPatchArgs, BootRestoreArgs},
@@ -41,6 +41,10 @@ enum Commands {
     /// Run sulog reader daemon. Not for user. Use `ksud debug sulogd` to launch daemon.
     #[command(hide = true)]
     Sulogd,
+
+    /// Run the root-request notifier daemon. Not for user. Use `ksud debug su-notifyd`.
+    #[command(hide = true)]
+    SuNotifyd,
 
     /// Trigger `boot-complete` event
     BootCompleted,
@@ -261,6 +265,9 @@ enum Debug {
 
     /// Launch sulogd daemon manually
     Sulogd,
+
+    /// Launch the root-request notifier daemon manually
+    SuNotifyd,
 
     /// Get kernel info
     Info,
@@ -803,6 +810,7 @@ pub fn run() -> Result<()> {
             Ok(())
         }
         Commands::Sulogd => sulog::run_sulogd(),
+        Commands::SuNotifyd => su_notify::run_su_notifyd(),
         Commands::Profile { command } => match command {
             Profile::GetSepolicy { package } => profile::get_sepolicy(package),
             Profile::SetSepolicy { package, policy } => profile::set_sepolicy(package, policy),
@@ -870,6 +878,7 @@ pub fn run() -> Result<()> {
                 MarkCommand::Refresh => debug::mark_refresh(),
             },
             Debug::Sulogd => sulog::ensure_sulogd_running(),
+            Debug::SuNotifyd => su_notify::ensure_su_notifyd_running(),
             Debug::Info => {
                 let info = ksucalls::get_info();
                 println!("version: {}", info.version);

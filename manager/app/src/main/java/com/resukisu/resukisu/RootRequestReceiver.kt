@@ -15,8 +15,8 @@ import kotlin.concurrent.thread
 
 /**
  * Raises a root-request notification (Grant / Cloak / Ignore) and handles those
- * three action buttons. The notification is posted by RootRequestMonitorService
- * (which watches Sentinel's su-probe history); this receiver only handles taps.
+ * three action buttons. The su-notifyd daemon (which watches Sentinel's su-probe
+ * history) broadcasts here to post the notification; taps come back here too.
  *   Grant  -> add the app to the superuser allowlist
  *   Cloak  -> add the app to the Sentinel cloak list
  *   Ignore -> dismiss
@@ -90,6 +90,12 @@ class RootRequestReceiver : BroadcastReceiver() {
                 runRoot(context, uid, granted = false)
             }
             "ignore" -> cancel(context, uid)
+            // No action extra = a root request from the su-notifyd daemon.
+            else -> {
+                val on = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    .getBoolean(KEY_ENABLED, false)
+                if (on) postNotification(context, uid)
+            }
         }
     }
 

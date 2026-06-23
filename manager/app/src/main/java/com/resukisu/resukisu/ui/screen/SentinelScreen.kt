@@ -34,6 +34,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,8 +56,10 @@ import com.resukisu.resukisu.ui.util.clearSentinelHistory
 import com.resukisu.resukisu.ui.util.getSentinelStatus
 import com.resukisu.resukisu.ui.util.sentinelCloak
 import com.resukisu.resukisu.ui.util.uncloakRestore
+import com.resukisu.resukisu.RootRequestReceiver
 import com.resukisu.resukisu.ui.util.setSentinel
 import com.resukisu.resukisu.ui.util.setSentinelAuto
+import com.resukisu.resukisu.ui.util.setSuNotify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -73,6 +77,27 @@ fun SentinelScreen() {
     var auto by remember { mutableStateOf(false) }
     var probes by remember { mutableStateOf<List<SentinelHistEntry>>(emptyList()) }
     var cloaked by remember { mutableStateOf<List<Int>>(emptyList()) }
+    val suNotifyPrefs = context.getSharedPreferences(
+        RootRequestReceiver.PREFS, android.content.Context.MODE_PRIVATE
+    )
+    var notify by remember {
+        mutableStateOf(suNotifyPrefs.getBoolean(RootRequestReceiver.KEY_ENABLED, false))
+    }
+    val notifPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    // Apply helpers. Auto-cloak and Notify are mutually exclusive (one or both off):
+    // auto-cloak hides apps before you could be asked to grant them.
+    val applyNotify = { on: Boolean ->
+        notify = on
+        suNotifyPrefs.edit().putBoolean(RootRequestReceiver.KEY_ENABLED, on).apply()
+        scope.launch { withContext(Dispatchers.IO) { setSuNotify(on) } }
+        if (on) notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
+    val applyAuto = { on: Boolean ->
+        auto = on
+        scope.launch { withContext(Dispatchers.IO) { setSentinelAuto(on) } }
+    }
     var shownCount by remember { mutableIntStateOf(5) }
 
     fun label(uid: Int): String {
@@ -151,8 +176,20 @@ fun SentinelScreen() {
                     supportingContent = { Text(stringResource(R.string.sentinel_auto_summary)) },
                     trailingContent = {
                         Switch(checked = auto, enabled = enabled, onCheckedChange = { on ->
-                            auto = on
-                            scope.launch { withContext(Dispatchers.IO) { setSentinelAuto(on) } }
+                            applyAuto(on)
+                            if (on && notify) applyNotify(false) // mutually exclusive
+                        })
+                    },
+                )
+            }
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.sentinel_notify)) },
+                    supportingContent = { Text(stringResource(R.string.sentinel_notify_summary)) },
+                    trailingContent = {
+                        Switch(checked = notify, enabled = enabled, onCheckedChange = { on ->
+                            applyNotify(on)
+                            if (on && auto) applyAuto(false) // mutually exclusive
                         })
                     },
                 )

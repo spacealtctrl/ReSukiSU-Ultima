@@ -14,6 +14,7 @@ mod restorecon;
 mod sentinel;
 mod sepolicy;
 mod su;
+mod su_notify;
 mod sulog;
 mod susfs;
 #[allow(nonstandard_style, unused, unsafe_op_in_unsafe_fn)]

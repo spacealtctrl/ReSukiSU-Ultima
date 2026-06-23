@@ -394,14 +394,29 @@ suspend fun disableZygisk(): Boolean = withContext(Dispatchers.IO) {
     )
 }
 
+private const val SU_NOTIFY_FLAG = "/data/adb/ksu/su_notify_enabled"
+private const val MANAGER_PACKAGE_FILE = "/data/adb/ksu/manager_package"
+
 /**
- * Root-request notifications rely on Sentinel (not SU Log). If SU Log is off but
- * a stray sulogd is running (a leftover from an earlier build that started it),
- * stop it - we never want to touch SU Log. No-op if SU Log is enabled.
+ * Enable/disable root-request notifications. Driven entirely by Sentinel via the
+ * native su-notifyd daemon (NO SU Log). On enable we publish this manager's
+ * (randomized) package + the enable flag, then start the daemon; on disable we
+ * clear the flag (the daemon exits) and stop it.
  */
-suspend fun stopStraySulogd(): Unit = withContext(Dispatchers.IO) {
-    if (getFeaturePersistValue("sulog") != 1L) {
-        ShellUtils.fastCmdResult(getRootShell(), "pkill -f 'ksud sulogd' 2>/dev/null; true")
+suspend fun setSuNotify(enable: Boolean): Boolean = withContext(Dispatchers.IO) {
+    val shell = getRootShell()
+    if (enable) {
+        ShellUtils.fastCmdResult(
+            shell,
+            "echo ${ksuApp.packageName} > $MANAGER_PACKAGE_FILE; " +
+                "touch $SU_NOTIFY_FLAG; " +
+                "${getKsuDaemonPath()} debug su-notifyd"
+        )
+    } else {
+        ShellUtils.fastCmdResult(
+            shell,
+            "rm -f $SU_NOTIFY_FLAG; pkill -f 'ksud su-notifyd' 2>/dev/null; true"
+        )
     }
 }
 

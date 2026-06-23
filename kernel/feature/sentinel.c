@@ -482,12 +482,16 @@ static void sentinel_kprobe_arm(void)
 {
     mutex_lock(&sentinel_kp_lock);
     if (!kp_faccessat_ok) {
+        /* unregister_kprobe leaves .addr set (resolved from .symbol_name);
+         * register_kprobe rejects having both, so clear it to re-resolve. */
+        sentinel_faccessat_kp.addr = NULL;
         if (register_kprobe(&sentinel_faccessat_kp))
             pr_err("sentinel: register_kprobe(do_faccessat) failed\n");
         else
             kp_faccessat_ok = true;
     }
     if (!kp_openat_ok) {
+        sentinel_openat_kp.addr = NULL;
         if (register_kprobe(&sentinel_openat_kp))
             pr_err("sentinel: register_kprobe(do_sys_openat2) failed\n");
         else
