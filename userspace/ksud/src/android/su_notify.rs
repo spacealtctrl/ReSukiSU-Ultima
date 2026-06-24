@@ -21,10 +21,12 @@ use crate::android::{ksucalls, utils};
 const ENABLED_FLAG: &str = "/data/adb/ksu/su_notify_enabled";
 const MANAGER_PKG: &str = "/data/adb/ksu/manager_package";
 const LOCK_PATH: &str = "/data/adb/ksu/su_notifyd.lock";
-// KSU_SENTINEL_KIND_SU_EXEC = 7 -> history bit (7-1) = 1<<6. We notify ONLY on a
-// real su EXECUTION, never on the passive su-path probes (bit 0) that every
-// root-detecting app does - that was the notification flood.
-const KIND_SU_EXEC: u32 = 1 << 6;
+// KSU_SENTINEL_KIND_SU = 1 -> history bit 0. su EXEC can't be used as the signal:
+// su is hidden from non-allowlisted apps, so they can never exec it - the only
+// thing the kernel ever sees is the su-path *probe*. So we notify on the probe,
+// but with hard guards (start-time skip + cloak filter + receiver re-check) so a
+// CLOAKED app NEVER notifies, ever - on boot or otherwise.
+const KIND_SU: u32 = 1;
 const POLL: Duration = Duration::from_secs(5);
 
 fn enabled() -> bool {
@@ -89,7 +91,7 @@ pub fn run_su_notifyd() -> Result<()> {
             let cloaked: HashSet<u32> = cloaked_vec.into_iter().collect();
             if let Ok(entries) = ksucalls::sentinel_history() {
                 for e in entries {
-                    if (e.kinds & KIND_SU_EXEC) == 0 || e.uid < 10000 {
+                    if (e.kinds & KIND_SU) == 0 || e.uid < 10000 {
                         continue;
                     }
                     if e.last_ns <= start_ns {
@@ -115,6 +117,16 @@ pub fn ensure_su_notifyd_running() -> Result<()> {
     if !enabled() {
         return Ok(());
     }
+    // Kill any stale daemon first. After a ksud update the old binary keeps
+    // running (its code lacks the current cloak/boot guards) and was the cause of
+    // the cloaked-app reboot flood. "ksud su-notifyd" does NOT match our own
+    // "ksud debug su-notifyd" cmdline, so we never kill the process doing this.
+    let _ = Command::new("pkill")
+        .arg("-9")
+        .arg("-f")
+        .arg("ksud su-notifyd")
+        .status();
+    thread::sleep(Duration::from_millis(800));
     if utils::create_daemon(true)? {
         let exe = std::env::current_exe().context("resolve ksud path")?;
         let mut cmd = Command::new(exe);

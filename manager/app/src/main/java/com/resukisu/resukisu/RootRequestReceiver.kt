@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.resukisu.resukisu.ui.util.isSentinelCloaked
 import com.resukisu.resukisu.ui.util.sentinelCloak
 import kotlin.concurrent.thread
 
@@ -30,8 +31,8 @@ class RootRequestReceiver : BroadcastReceiver() {
         private const val EXTRA_ACTION = "su_action"
         private const val EXTRA_UID = "uid"
 
-        /** Post the 3-action root-request notification for [uid]. Called by the
-         *  monitor service after it has filtered (enabled / not cloaked / not granted). */
+        /** Post the 3-action root-request notification for [uid]. Called after
+         *  filtering (enabled / not cloaked) in onReceive. */
         fun postNotification(context: Context, uid: Int) {
             val pm = context.packageManager
             val pkg = pm.getPackagesForUid(uid)?.firstOrNull()
@@ -94,7 +95,18 @@ class RootRequestReceiver : BroadcastReceiver() {
             else -> {
                 val on = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                     .getBoolean(KEY_ENABLED, false)
-                if (on) postNotification(context, uid)
+                if (!on) return
+                // Defense in depth: re-check the cloak list here (off the main
+                // thread) so a CLOAKED app is NEVER shown a notification, even if
+                // the daemon's filter ever raced with cloak restore at boot.
+                val pending = goAsync()
+                thread {
+                    try {
+                        if (!isSentinelCloaked(uid)) postNotification(context, uid)
+                    } finally {
+                        pending.finish()
+                    }
+                }
             }
         }
     }
