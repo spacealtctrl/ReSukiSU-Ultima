@@ -293,6 +293,7 @@ internal fun kindsLabel(kinds: Int): String {
         if (kinds and 0x08 != 0) add("modules")
         if (kinds and 0x10 != 0) add("app list")
         if (kinds and 0x20 != 0) add("busybox")
+        if (kinds and 0x40 != 0) add("ran su")
     }
     return names.joinToString(", ").ifEmpty { "root" }
 }

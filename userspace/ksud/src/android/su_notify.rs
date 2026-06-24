@@ -21,7 +21,10 @@ use crate::android::{ksucalls, utils};
 const ENABLED_FLAG: &str = "/data/adb/ksu/su_notify_enabled";
 const MANAGER_PKG: &str = "/data/adb/ksu/manager_package";
 const LOCK_PATH: &str = "/data/adb/ksu/su_notifyd.lock";
-const KIND_SU: u32 = 1; // KSU_SENTINEL_KIND_SU -> bit 0
+// KSU_SENTINEL_KIND_SU_EXEC = 7 -> history bit (7-1) = 1<<6. We notify ONLY on a
+// real su EXECUTION, never on the passive su-path probes (bit 0) that every
+// root-detecting app does - that was the notification flood.
+const KIND_SU_EXEC: u32 = 1 << 6;
 const POLL: Duration = Duration::from_secs(5);
 
 fn enabled() -> bool {
@@ -86,7 +89,7 @@ pub fn run_su_notifyd() -> Result<()> {
             let cloaked: HashSet<u32> = cloaked_vec.into_iter().collect();
             if let Ok(entries) = ksucalls::sentinel_history() {
                 for e in entries {
-                    if (e.kinds & KIND_SU) == 0 || e.uid < 10000 {
+                    if (e.kinds & KIND_SU_EXEC) == 0 || e.uid < 10000 {
                         continue;
                     }
                     if e.last_ns <= start_ns {

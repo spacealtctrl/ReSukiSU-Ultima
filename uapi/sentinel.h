@@ -14,8 +14,9 @@ enum ksu_sentinel_kind {
     KSU_SENTINEL_KIND_MODULES = 4, /* /data/adb/modules */
     KSU_SENTINEL_KIND_PKGLIST = 5, /* app-list enumeration (packages.list) */
     KSU_SENTINEL_KIND_BUSYBOX = 6, /* busybox / toybox-su */
+    KSU_SENTINEL_KIND_SU_EXEC = 7, /* app actually EXECUTED su (a real root request, not a probe) */
 };
-#define KSU_SENTINEL_KIND_MAX 6
+#define KSU_SENTINEL_KIND_MAX 7
 
 /*
  * One probe event, delivered as the payload of a ksu_event_record over the

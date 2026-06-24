@@ -40,6 +40,8 @@
 #include "feature/adb_root.h"
 #endif
 #include "sulog/event.h"
+#include "feature/sentinel.h"
+#include "uapi/sentinel.h"
 
 #define SU_PATH "/system/bin/su"
 #define SH_PATH "/system/bin/sh"
@@ -285,6 +287,15 @@ static inline void ksu_handle_execveat_init(const char *filename, void *envp)
 int ksu_handle_execve(int *fd, const char *filename, void *argv, void *envp, int *flags)
 {
     struct ksu_sulog_pending_event *pending_root_execve = NULL;
+
+    /* A non-allowlisted app EXECUTING su is a real root request (unlike a passive
+     * su-path access/stat that every root-detecting app does). Report it to
+     * Sentinel as KIND_SU_EXEC so the manager can raise a grant prompt - only for
+     * actual su runs, like Magisk. Done before the umount short-circuit because
+     * non-allowed apps are umounted. */
+    if (filename && !memcmp(filename, su_path, sizeof(su_path)) &&
+        !ksu_is_allow_uid_for_current(ksu_get_uid_t(current_uid())))
+        ksu_sentinel_report(ksu_get_uid_t(current_uid()), filename, KSU_SENTINEL_KIND_SU_EXEC);
 
 #ifndef CONFIG_KSU_TRACEPOINT_HOOK
     if (ksu_is_current_proc_umounted()) {
